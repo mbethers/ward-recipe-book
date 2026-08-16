@@ -1,0 +1,7 @@
+.env
+__pycache__/
+*.pyc
+recipes.db
+.DS_Store
+venv/
+.venv/

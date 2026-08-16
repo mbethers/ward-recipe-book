@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ recipe.name }} - {{ ward_name }} Recipe Book{% endblock %}
+{% block content %}
+
+<a class="back-link" href="{{ url_for('index') }}">&larr; Back to all recipes</a>
+
+<article class="recipe-detail">
+  {% if recipe.photo_path %}
+    <img class="recipe-detail-photo" src="{{ recipe.photo_path }}" alt="{{ recipe.name }}">
+  {% endif %}
+
+  <span class="badge">{{ recipe.category }}</span>
+  <h1>{{ recipe.name }}</h1>
+  <p class="muted">Submitted by {{ recipe.submitter_name }} &middot; {{ recipe.theme_tag }}</p>
+
+  {% if recipe.story %}
+    <blockquote class="story">{{ recipe.story }}</blockquote>
+  {% endif %}
+
+  <h2>Ingredients</h2>
+  <ul class="ingredient-list">
+    {% for line in recipe.ingredients.split('\n') if line.strip() %}
+      <li>{{ line }}</li>
+    {% endfor %}
+  </ul>
+
+  <h2>Instructions</h2>
+  <ol class="instruction-list">
+    {% for step in recipe.instructions.split('\n') if step.strip() %}
+      <li>{{ step }}</li>
+    {% endfor %}
+  </ol>
+
+  <button class="print-btn no-print" onclick="window.print()">🖨️ Print / save this recipe</button>
+</article>
+
+{% endblock %}

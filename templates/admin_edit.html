@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Review recipe - Admin{% endblock %}
+{% block content %}
+
+{% include "_admin_nav.html" %}
+
+<a class="back-link" href="{{ url_for('admin_queue') if recipe.status == 'pending' else url_for('admin_published') }}">&larr; Back to list</a>
+
+<div class="admin-review">
+  {% if recipe.source_image_path %}
+    <div class="admin-source">
+      <h2>Original source</h2>
+      {% if recipe.source_image_path.lower().endswith('.pdf') %}
+        <iframe class="source-pdf" src="{{ recipe.source_image_path }}"></iframe>
+      {% else %}
+        <img class="source-photo" src="{{ recipe.source_image_path }}" alt="Original recipe card">
+      {% endif %}
+      {% if recipe.parse_model %}<p class="muted small">Read by: {{ recipe.parse_model }}</p>{% endif %}
+      <form method="post" action="{{ url_for('admin_recipe_reprocess', recipe_id=recipe.id) }}">
+        <button type="submit" class="secondary-btn">🔁 Reprocess with better model (Sonnet)</button>
+      </form>
+    </div>
+  {% endif %}
+
+  <div class="admin-fields">
+    <h2>Recipe details</h2>
+    <form method="post" action="{{ url_for('admin_recipe_update', recipe_id=recipe.id) }}">
+      <label>Recipe name
+        <input type="text" name="name" value="{{ recipe.name }}" required>
+      </label>
+
+      <label>Submitter name
+        <input type="text" name="submitter_name" value="{{ recipe.submitter_name }}" required>
+      </label>
+
+      <label>Category
+        <select name="category">
+          {% for c in categories %}
+            <option value="{{ c }}" {% if recipe.category == c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      {% with field_prefix = "admin" %}
+        <label>Theme
+          <select name="theme_tag" id="admin_theme_tag" onchange="window.__toggleNewTheme && window.__toggleNewTheme(this)">
+            {% for t in themes %}
+              <option value="{{ t.name }}" {% if recipe.theme_tag == t.name %}selected{% endif %}>{{ t.name }}</option>
+            {% endfor %}
+            <option value="__new__">+ Add a new theme...</option>
+          </select>
+        </label>
+        <label class="new-theme-field" id="admin_new_theme_wrap" style="display:none">
+          New theme name
+          <input type="text" name="new_theme" id="admin_new_theme">
+        </label>
+      {% endwith %}
+
+      <label>Ingredients <span class="hint">(one per line)</span>
+        <textarea name="ingredients" rows="8">{{ recipe.ingredients }}</textarea>
+      </label>
+
+      <label>Instructions
+        <textarea name="instructions" rows="8">{{ recipe.instructions }}</textarea>
+      </label>
+
+      <label>Story
+        <textarea name="story" rows="3">{{ recipe.story }}</textarea>
+      </label>
+
+      <button type="submit" class="secondary-btn">💾 Save changes</button>
+    </form>
+
+    {% if recipe.photo_path %}
+      <img class="source-photo" src="{{ recipe.photo_path }}" alt="Dish photo">
+    {% endif %}
+
+    <div class="admin-actions">
+      {% if recipe.status == 'pending' %}
+        <form method="post" action="{{ url_for('admin_recipe_approve', recipe_id=recipe.id) }}">
+          <button type="submit" class="primary-btn">✅ Approve &amp; Publish</button>
+        </form>
+        <form method="post" action="{{ url_for('admin_recipe_reject', recipe_id=recipe.id) }}"
+              onsubmit="return confirm('Reject this submission? It will be hidden from the public book.');">
+          <button type="submit" class="danger-btn">✋ Reject</button>
+        </form>
+      {% else %}
+        <span class="badge">Status: {{ recipe.status }}</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% endblock %}

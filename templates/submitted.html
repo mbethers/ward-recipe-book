@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Thanks! - {{ ward_name }} Recipe Book{% endblock %}
+{% block content %}
+<div class="confirmation">
+  <div class="confirmation-icon">🎉</div>
+  <h1>Thanks! Your recipe is in the book.</h1>
+  <p class="muted">An admin will give it a quick look before it appears for everyone.</p>
+  <div class="confirmation-actions">
+    <a class="primary-btn" href="{{ url_for('submit_form') }}">Add another recipe</a>
+    <a class="secondary-btn" href="{{ url_for('index') }}">Browse the recipe book</a>
+  </div>
+</div>
+{% endblock %}
