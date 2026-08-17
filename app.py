@@ -191,7 +191,11 @@ def submit_photo():
         store_bytes, store_content_type, store_ext = raw_bytes, "application/pdf", ".pdf"
     elif image_utils.is_image(filename):
         media_type = "image/jpeg"
-        parse_bytes = image_utils.normalize_image(raw_bytes)
+        try:
+            parse_bytes = image_utils.normalize_image(raw_bytes)
+        except image_utils.UnsupportedImageError as exc:
+            flash(str(exc))
+            return redirect(url_for("submit_form"))
         store_bytes, store_content_type, store_ext = parse_bytes, "image/jpeg", ".jpg"
     else:
         flash("Please upload a photo (jpg/png/heic) or a PDF.")
@@ -255,7 +259,11 @@ def _store_dish_photo(file_storage) -> str | None:
     filename = file_storage.filename
     if not image_utils.is_image(filename):
         return None
-    jpeg_bytes = image_utils.normalize_image(raw_bytes)
+    try:
+        jpeg_bytes = image_utils.normalize_image(raw_bytes)
+    except image_utils.UnsupportedImageError as exc:
+        app.logger.warning("Skipping dish photo, unreadable format: %s", exc)
+        return None
     if not storage.storage_configured():
         return None
     try:
