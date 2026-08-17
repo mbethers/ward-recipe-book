@@ -19,7 +19,7 @@ CATEGORIES = ["Main", "Side", "Dessert", "Bread", "Breakfast", "Other"]
 CUISINES = [
     "American", "Mexican", "Italian", "Indian", "Chinese", "Thai", "Japanese",
     "Korean", "Vietnamese", "Filipino", "Chilean", "Brazilian", "Peruvian",
-    "Greek", "French", "German", "Middle Eastern", "Hawaiian/Pacific Islander",
+    "Greek", "French", "German", "Mediterranean", "Hawaiian/Pacific Islander",
     "African", "Other",
 ]
 
