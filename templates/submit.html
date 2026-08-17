@@ -70,8 +70,8 @@
 </form>
 
 <form id="form-photo" class="tab-panel" method="post" action="{{ url_for('submit_photo') }}" enctype="multipart/form-data">
-  <p class="hint">Snap a photo of a recipe card, or upload a PDF/screenshot. We'll read it automatically -
-    an admin double-checks everything before it's published.</p>
+  <p class="hint">Snap a photo of a recipe card, or upload a PDF/screenshot. We'll read it automatically
+    and let you look it over and fix anything before it's sent in for review.</p>
 
   <label>Your name
     <input type="text" name="submitter_name" required>
@@ -85,8 +85,8 @@
 </form>
 
 <form id="form-link" class="tab-panel" method="post" action="{{ url_for('submit_url') }}">
-  <p class="hint">Paste a link to a recipe on another website. We'll pull it in automatically -
-    an admin double-checks everything before it's published.</p>
+  <p class="hint">Paste a link to a recipe on another website. We'll pull it in automatically
+    and let you look it over and fix anything before it's sent in for review.</p>
 
   <label>Your name
     <input type="text" name="submitter_name" required>

@@ -32,6 +32,7 @@ document.addEventListener("submit", (event) => {
     "photo-upload-btn": "Uploading your photo…",
     "link-submit-btn": "Reading that page… (can take up to a minute)",
     "text-submit-btn": "Checking it over…",
+    "preview-submit-btn": "Sending it in…",
   };
   btn.textContent = messages[btn.id] || "Please wait…";
 });

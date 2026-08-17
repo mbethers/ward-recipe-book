@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Review before sending - {{ ward_name }} Cookbook{% endblock %}
+{% block content %}
+
+<h1>Check it over</h1>
+{% if source_url %}
+  <p class="hint">
+    Here's what we pulled from <a href="{{ source_url }}" target="_blank" rel="noopener noreferrer">{{ source_url }}</a>.
+    Fix anything that's off, then send it in - an admin still double-checks it before it's published.
+  </p>
+{% else %}
+  <p class="hint">Here's what we read from your upload. Fix anything that's off, then send it in -
+    an admin still double-checks it before it's published.</p>
+  {% if source_image_path %}
+    {% if source_image_path.lower().endswith('.pdf') %}
+      <iframe class="source-pdf" src="{{ source_image_path }}"></iframe>
+    {% else %}
+      <img class="source-photo" src="{{ source_image_path }}" alt="Your uploaded recipe">
+    {% endif %}
+  {% endif %}
+{% endif %}
+
+<form method="post" action="{{ url_for('submit_photo_confirm') if source_image_path else url_for('submit_url_confirm') }}">
+  <input type="hidden" name="source_url" value="{{ source_url }}">
+  <input type="hidden" name="source_image_path" value="{{ source_image_path }}">
+  <input type="hidden" name="parse_model" value="{{ parsed.parse_model or '' }}">
+
+  <label>Recipe name
+    <input type="text" name="name" value="{{ parsed.name }}" required>
+  </label>
+
+  <label>Your name
+    <input type="text" name="submitter_name" value="{{ submitter_name }}" required>
+  </label>
+
+  <label>Category
+    <select name="category">
+      {% for c in categories %}
+        <option value="{{ c }}" {% if parsed.category == c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label>Cuisine <span class="hint">(optional)</span>
+    <select name="cuisine">
+      <option value="">Not sure / doesn't fit a category</option>
+      {% for c in cuisines %}
+        <option value="{{ c }}" {% if parsed.cuisine == c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label>Dietary <span class="hint">(optional - check all that apply)</span></label>
+  <div class="checkbox-group">
+    {% for tag in dietary_options %}
+      <label class="checkbox-option">
+        <input type="checkbox" name="dietary" value="{{ tag }}"> {{ tag }}
+      </label>
+    {% endfor %}
+  </div>
+
+  <div class="field-row">
+    <label>Total prep time <span class="hint">(optional)</span>
+      <input type="text" name="prep_time" value="{{ parsed.prep_time }}" placeholder="e.g. 30 min">
+    </label>
+    <label>Servings <span class="hint">(optional)</span>
+      <input type="text" name="servings" value="{{ parsed.servings }}" placeholder="e.g. 8">
+    </label>
+  </div>
+
+  <label>Ingredients <span class="hint">(one per line)</span>
+    <textarea name="ingredients" rows="8" placeholder="2 cups flour&#10;1 tsp salt&#10;...">{{ parsed.ingredients }}</textarea>
+  </label>
+
+  <label>Instructions
+    <textarea name="instructions" rows="8" placeholder="1. Preheat oven to 350...&#10;2. Mix...">{{ parsed.instructions }}</textarea>
+  </label>
+
+  <label>Story or memory <span class="hint">(optional)</span>
+    <textarea name="story" rows="3" placeholder="Where did this recipe come from?">{{ parsed.story }}</textarea>
+  </label>
+
+  <button type="submit" id="preview-submit-btn" class="primary-btn">Looks good - send for review</button>
+</form>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% endblock %}

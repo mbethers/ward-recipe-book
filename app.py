@@ -382,10 +382,10 @@ def submit_photo():
         flash("Please upload a photo (jpg/png/heic) or a PDF.")
         return redirect(url_for("submit_form"))
 
-    source_url = None
+    source_image_path = None
     if storage.storage_configured():
         try:
-            source_url = storage.upload_bytes(store_bytes, f"source{store_ext}", store_content_type, "sources")
+            source_image_path = storage.upload_bytes(store_bytes, f"source{store_ext}", store_content_type, "sources")
         except RuntimeError as exc:
             app.logger.error("Supabase upload failed: %s", exc)
 
@@ -400,52 +400,84 @@ def submit_photo():
         "story": "",
         "parse_model": None,
     }
-    parse_error = None
     try:
         parsed = parse_recipe(parse_bytes, media_type)
     except ParseError as exc:
-        parse_error = str(exc)
         app.logger.error("Claude parse failed: %s", exc)
+        flash("We couldn't automatically read that - no worries, just fill in what you can below.")
 
-    proofreading_notes = ""
-    if not parse_error:
-        proofreading_notes = _run_proofreading(
-            parsed["name"], parsed["ingredients"], parsed["instructions"], parsed["story"]
-        )
+    return render_template(
+        "submit_preview.html",
+        submitter_name=submitter_name,
+        source_url="",
+        source_image_path=source_image_path,
+        parsed=parsed,
+        categories=db.CATEGORIES,
+        cuisines=db.CUISINES,
+        dietary_options=db.DIETARY_TAGS,
+    )
+
+
+@app.route("/submit/photo/confirm", methods=["POST"])
+def submit_photo_confirm():
+    """Takes the (possibly hand-edited) fields from the review screen after
+    a photo/PDF upload and actually creates the pending submission - the
+    upload/parse already happened in submit_photo() above."""
+    form = request.form
+    name = (form.get("name") or "").strip()
+    submitter_name = (form.get("submitter_name") or "").strip()
+    source_image_path = (form.get("source_image_path") or "").strip() or None
+    if not name or not submitter_name:
+        flash("Recipe name and your name are required.")
+        return redirect(url_for("submit_form"))
+
+    category = form.get("category") or "Other"
+    if category not in db.CATEGORIES:
+        category = "Other"
+
+    cuisine = form.get("cuisine") or ""
+    if cuisine not in db.CUISINES:
+        cuisine = ""
+
+    dietary_tags = ",".join(t for t in form.getlist("dietary") if t in db.DIETARY_TAGS)
+    prep_time = (form.get("prep_time") or "").strip()
+    servings = (form.get("servings") or "").strip()
+    ingredients = (form.get("ingredients") or "").strip()
+    instructions = (form.get("instructions") or "").strip()
+    story = (form.get("story") or "").strip()
+    proofreading_notes = _run_proofreading(name, ingredients, instructions, story)
 
     conn = db.get_db()
-    display_name = parsed["name"] or "(untitled - needs review)"
     new_id = conn.execute(
         """INSERT INTO recipes
-           (name, submitter_name, category, cuisine, prep_time, servings, ingredients,
-            instructions, story, source_image_path, status, submitted_at, parse_model, proofreading_notes)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s)
+           (name, submitter_name, category, cuisine, dietary_tags, prep_time, servings,
+            ingredients, instructions, story, source_image_path, status, submitted_at,
+            parse_model, proofreading_notes)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s)
            RETURNING id""",
         (
-            display_name,
+            name,
             submitter_name,
-            parsed["category"],
-            parsed.get("cuisine", ""),
-            parsed.get("prep_time", ""),
-            parsed.get("servings", ""),
-            parsed["ingredients"],
-            parsed["instructions"],
-            parsed["story"],
-            source_url,
+            category,
+            cuisine,
+            dietary_tags,
+            prep_time,
+            servings,
+            ingredients,
+            instructions,
+            story,
+            source_image_path,
             db.now_iso(),
-            parsed.get("parse_model"),
+            (form.get("parse_model") or "").strip() or None,
             proofreading_notes,
         ),
     ).fetchone()["id"]
     conn.commit()
     _notify_admin(
-        f'New recipe pending review: "{display_name}"',
-        f"{submitter_name} submitted \"{display_name}\" (from a photo/PDF upload) for review.\n\n"
+        f'New recipe pending review: "{name}"',
+        f"{submitter_name} submitted \"{name}\" (from a photo/PDF upload) for review.\n\n"
         f"Review it: {url_for('admin_recipe_edit', recipe_id=new_id, _external=True)}",
     )
-
-    if parse_error:
-        flash("Thanks! We saved your upload, but the automatic reading had trouble - an admin will fill in the details by hand.")
     return redirect(url_for("submitted"))
 
 
@@ -464,53 +496,87 @@ def submit_url():
         flash(str(exc))
         return redirect(url_for("submit_form"))
     except ParseError as exc:
-        # We reached the page but couldn't make a recipe out of it - still
-        # worth saving so an admin can look at the link and fill it in by hand,
-        # same as a photo/PDF that failed to read.
+        # We reached the page but couldn't make a recipe out of it - hand
+        # back a blank preview so the submitter can just fill it in
+        # themselves rather than leaving it entirely to the admin.
         app.logger.error("Web recipe parse failed for %s: %s", recipe_url, exc)
         parsed = {"name": "", "category": "Other", "cuisine": "", "prep_time": "", "servings": "",
                   "ingredients": "", "instructions": "", "story": "", "parse_model": None}
         final_url = recipe_url
+        flash("We couldn't automatically read that page - no worries, just fill in what you can below.")
 
-    proofreading_notes = ""
-    if parsed["name"]:
-        proofreading_notes = _run_proofreading(
-            parsed["name"], parsed["ingredients"], parsed["instructions"], parsed["story"]
-        )
+    return render_template(
+        "submit_preview.html",
+        submitter_name=submitter_name,
+        source_url=final_url,
+        source_image_path="",
+        parsed=parsed,
+        categories=db.CATEGORIES,
+        cuisines=db.CUISINES,
+        dietary_options=db.DIETARY_TAGS,
+    )
+
+
+@app.route("/submit/url/confirm", methods=["POST"])
+def submit_url_confirm():
+    """Takes the (possibly hand-edited) fields from the review screen after
+    a link import and actually creates the pending submission - the fetch/
+    parse already happened in submit_url() above."""
+    form = request.form
+    name = (form.get("name") or "").strip()
+    submitter_name = (form.get("submitter_name") or "").strip()
+    source_url = (form.get("source_url") or "").strip()
+    if not name or not submitter_name:
+        flash("Recipe name and your name are required.")
+        return redirect(url_for("submit_form"))
+
+    category = form.get("category") or "Other"
+    if category not in db.CATEGORIES:
+        category = "Other"
+
+    cuisine = form.get("cuisine") or ""
+    if cuisine not in db.CUISINES:
+        cuisine = ""
+
+    dietary_tags = ",".join(t for t in form.getlist("dietary") if t in db.DIETARY_TAGS)
+    prep_time = (form.get("prep_time") or "").strip()
+    servings = (form.get("servings") or "").strip()
+    ingredients = (form.get("ingredients") or "").strip()
+    instructions = (form.get("instructions") or "").strip()
+    story = (form.get("story") or "").strip()
+    proofreading_notes = _run_proofreading(name, ingredients, instructions, story)
 
     conn = db.get_db()
-    display_name = parsed["name"] or "(untitled - needs review)"
     new_id = conn.execute(
         """INSERT INTO recipes
-           (name, submitter_name, category, cuisine, prep_time, servings, ingredients,
-            instructions, story, source_url, status, submitted_at, parse_model, proofreading_notes)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s)
+           (name, submitter_name, category, cuisine, dietary_tags, prep_time, servings,
+            ingredients, instructions, story, source_url, status, submitted_at,
+            parse_model, proofreading_notes)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s)
            RETURNING id""",
         (
-            display_name,
+            name,
             submitter_name,
-            parsed["category"],
-            parsed.get("cuisine", ""),
-            parsed.get("prep_time", ""),
-            parsed.get("servings", ""),
-            parsed["ingredients"],
-            parsed["instructions"],
-            parsed["story"],
-            final_url,
+            category,
+            cuisine,
+            dietary_tags,
+            prep_time,
+            servings,
+            ingredients,
+            instructions,
+            story,
+            source_url,
             db.now_iso(),
-            parsed.get("parse_model"),
+            (form.get("parse_model") or "").strip() or None,
             proofreading_notes,
         ),
     ).fetchone()["id"]
     conn.commit()
     _notify_admin(
-        f'New recipe pending review: "{display_name}"',
-        f"{submitter_name} submitted \"{display_name}\" (from a web link) for review.\n\n"
+        f'New recipe pending review: "{name}"',
+        f"{submitter_name} submitted \"{name}\" (from a web link) for review.\n\n"
         f"Review it: {url_for('admin_recipe_edit', recipe_id=new_id, _external=True)}",
     )
-
-    if not parsed["name"]:
-        flash("Thanks! We saved your link, but the automatic reading had trouble - an admin will fill in the details by hand.")
     return redirect(url_for("submitted"))
 
 
