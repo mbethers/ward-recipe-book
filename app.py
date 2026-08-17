@@ -1,8 +1,7 @@
 """University Ward Recipe Book - Flask app.
 
 Public: browse/search published recipes, submit a recipe (typed or photo/PDF upload).
-Admin (/admin, password-gated): review pending submissions, edit, approve/reject,
-manage theme tags.
+Admin (/admin, password-gated): review pending submissions, edit, approve/reject.
 """
 import functools
 import os
@@ -39,25 +38,6 @@ with app.app_context():
 
 # ---------------------------------------------------------------- helpers --
 
-def get_themes():
-    conn = db.get_db()
-    return conn.execute("SELECT * FROM themes ORDER BY is_current DESC, name ASC").fetchall()
-
-
-def ensure_theme(name: str):
-    """Make sure a theme tag exists in the themes table (used for free-typed new themes)."""
-    name = (name or "").strip()
-    if not name:
-        return
-    conn = db.get_db()
-    conn.execute(
-        """INSERT INTO themes (name, is_current, created_at) VALUES (%s, FALSE, %s)
-           ON CONFLICT (name) DO NOTHING""",
-        (name, db.now_iso()),
-    )
-    conn.commit()
-
-
 def admin_required(view):
     @functools.wraps(view)
     def wrapped(*args, **kwargs):
@@ -91,7 +71,6 @@ def index():
     conn = db.get_db()
     q = request.args.get("q", "").strip()
     category = request.args.get("category", "").strip()
-    theme = request.args.get("theme", "").strip()
 
     sql = """SELECT r.*,
                     COALESCE(AVG(rv.rating), 0)::float AS avg_rating,
@@ -107,21 +86,15 @@ def index():
     if category:
         sql += " AND r.category = %s"
         params.append(category)
-    if theme:
-        sql += " AND r.theme_tag = %s"
-        params.append(theme)
     sql += " GROUP BY r.id ORDER BY LOWER(r.name) ASC"
 
     recipes = conn.execute(sql, params).fetchall()
-    themes = get_themes()
     return render_template(
         "index.html",
         recipes=recipes,
         categories=db.CATEGORIES,
-        themes=themes,
         q=q,
         active_category=category,
-        active_theme=theme,
         intro_text=db.get_setting("intro_text", db.DEFAULT_INTRO_TEXT),
     )
 
@@ -172,19 +145,12 @@ def submit_review(recipe_id):
 
 @app.route("/submit", methods=["GET"])
 def submit_form():
-    themes = get_themes()
-    return render_template("submit.html", categories=db.CATEGORIES, themes=themes)
+    return render_template("submit.html", categories=db.CATEGORIES)
 
 
 @app.route("/submit/text", methods=["POST"])
 def submit_text():
     form = request.form
-    theme_tag = (form.get("new_theme") or "").strip() or (form.get("theme_tag") or "").strip()
-    if not theme_tag:
-        flash("Please choose or enter a theme.")
-        return redirect(url_for("submit_form"))
-    ensure_theme(theme_tag)
-
     name = (form.get("name") or "").strip()
     submitter_name = (form.get("submitter_name") or "").strip()
     if not name or not submitter_name:
@@ -203,14 +169,13 @@ def submit_text():
     conn = db.get_db()
     conn.execute(
         """INSERT INTO recipes
-           (name, submitter_name, category, theme_tag, ingredients, instructions,
+           (name, submitter_name, category, ingredients, instructions,
             story, photo_path, status, submitted_at)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s)""",
+           VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', %s)""",
         (
             name,
             submitter_name,
             category,
-            theme_tag,
             (form.get("ingredients") or "").strip(),
             (form.get("instructions") or "").strip(),
             (form.get("story") or "").strip(),
@@ -225,14 +190,12 @@ def submit_text():
 @app.route("/submit/photo", methods=["POST"])
 def submit_photo():
     form = request.form
-    theme_tag = (form.get("new_theme") or "").strip() or (form.get("theme_tag") or "").strip()
     submitter_name = (form.get("submitter_name") or "").strip()
     upload = request.files.get("source_file")
 
-    if not theme_tag or not submitter_name or not upload or not upload.filename:
-        flash("Your name, a theme, and a photo or PDF are all required.")
+    if not submitter_name or not upload or not upload.filename:
+        flash("Your name and a photo or PDF are both required.")
         return redirect(url_for("submit_form"))
-    ensure_theme(theme_tag)
 
     raw_bytes = upload.read()
     filename = upload.filename
@@ -278,14 +241,13 @@ def submit_photo():
     conn = db.get_db()
     conn.execute(
         """INSERT INTO recipes
-           (name, submitter_name, category, theme_tag, ingredients, instructions,
+           (name, submitter_name, category, ingredients, instructions,
             story, source_image_path, status, submitted_at, parse_model)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)""",
+           VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)""",
         (
             parsed["name"] or "(untitled - needs review)",
             submitter_name,
             parsed["category"],
-            theme_tag,
             parsed["ingredients"],
             parsed["instructions"],
             parsed["story"],
@@ -323,14 +285,6 @@ def _store_dish_photo(file_storage) -> str | None:
     except RuntimeError as exc:
         app.logger.error("Supabase upload failed: %s", exc)
         return None
-
-
-# --------------------------------------------------------------- api ------
-
-@app.route("/api/themes")
-def api_themes():
-    themes = get_themes()
-    return {"themes": [t["name"] for t in themes]}
 
 
 # -------------------------------------------------------------- admin -----
@@ -386,26 +340,22 @@ def admin_recipe_edit(recipe_id):
     recipe = conn.execute("SELECT * FROM recipes WHERE id = %s", (recipe_id,)).fetchone()
     if not recipe:
         abort(404)
-    themes = get_themes()
-    return render_template("admin_edit.html", recipe=recipe, categories=db.CATEGORIES, themes=themes)
+    return render_template("admin_edit.html", recipe=recipe, categories=db.CATEGORIES)
 
 
 def _save_recipe_fields(conn, recipe_id, form):
     """Applies the edit-form fields to a recipe. Caller commits."""
-    theme_tag = (form.get("new_theme") or "").strip() or (form.get("theme_tag") or "").strip()
-    ensure_theme(theme_tag)
     category = form.get("category") or "Other"
     if category not in db.CATEGORIES:
         category = "Other"
 
     conn.execute(
-        """UPDATE recipes SET name=%s, submitter_name=%s, category=%s, theme_tag=%s,
+        """UPDATE recipes SET name=%s, submitter_name=%s, category=%s,
            ingredients=%s, instructions=%s, story=%s WHERE id=%s""",
         (
             (form.get("name") or "").strip(),
             (form.get("submitter_name") or "").strip(),
             category,
-            theme_tag,
             (form.get("ingredients") or "").strip(),
             (form.get("instructions") or "").strip(),
             (form.get("story") or "").strip(),
@@ -514,39 +464,6 @@ def admin_settings():
 
     intro_text = db.get_setting("intro_text", db.DEFAULT_INTRO_TEXT)
     return render_template("admin_settings.html", intro_text=intro_text)
-
-
-@app.route("/admin/themes", methods=["GET", "POST"])
-@admin_required
-def admin_themes():
-    conn = db.get_db()
-    if request.method == "POST":
-        action = request.form.get("action")
-        if action == "add":
-            name = (request.form.get("name") or "").strip()
-            if name:
-                ensure_theme(name)
-        elif action == "set_current":
-            theme_id = request.form.get("theme_id")
-            conn.execute("UPDATE themes SET is_current = FALSE")
-            conn.execute("UPDATE themes SET is_current = TRUE WHERE id = %s", (theme_id,))
-            conn.commit()
-        elif action == "delete":
-            theme_id = request.form.get("theme_id")
-            theme = conn.execute("SELECT * FROM themes WHERE id=%s", (theme_id,)).fetchone()
-            if theme:
-                in_use = conn.execute(
-                    "SELECT COUNT(*) AS cnt FROM recipes WHERE theme_tag = %s", (theme["name"],)
-                ).fetchone()["cnt"]
-                if in_use:
-                    flash(f'"{theme["name"]}" is used by {in_use} recipe(s) and can\'t be deleted.')
-                else:
-                    conn.execute("DELETE FROM themes WHERE id=%s", (theme_id,))
-                    conn.commit()
-        return redirect(url_for("admin_themes"))
-
-    themes = get_themes()
-    return render_template("admin_themes.html", themes=themes)
 
 
 @app.errorhandler(413)

@@ -22,7 +22,6 @@ CREATE TABLE IF NOT EXISTS recipes (
     name TEXT NOT NULL DEFAULT '',
     submitter_name TEXT NOT NULL DEFAULT '',
     category TEXT NOT NULL DEFAULT 'Other',
-    theme_tag TEXT NOT NULL DEFAULT '',
     ingredients TEXT NOT NULL DEFAULT '',
     instructions TEXT NOT NULL DEFAULT '',
     story TEXT NOT NULL DEFAULT '',
@@ -32,13 +31,6 @@ CREATE TABLE IF NOT EXISTS recipes (
     submitted_at TEXT NOT NULL,
     reviewed_at TEXT,
     parse_model TEXT
-);
-
-CREATE TABLE IF NOT EXISTS themes (
-    id SERIAL PRIMARY KEY,
-    name TEXT UNIQUE NOT NULL,
-    is_current BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS reviews (
@@ -56,7 +48,13 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 """
 
-SEED_THEMES = ["Cold Cereal", "Favorite Family Recipes"]
+# One-off cleanup for themes, since CREATE TABLE IF NOT EXISTS above won't
+# touch a table/column that already exists. Safe to run on every startup -
+# both are no-ops once applied.
+DROP_THEMES = """
+ALTER TABLE recipes DROP COLUMN IF EXISTS theme_tag;
+DROP TABLE IF EXISTS themes;
+"""
 
 DEFAULT_INTRO_TEXT = (
     "Welcome to the University Ward's Cookbook. We invite you to add your own "
@@ -108,7 +106,7 @@ def close_db(_exc=None):
 
 
 def init_db():
-    """Creates tables and seeds starter themes if they don't exist yet. Safe to call
+    """Creates tables and seeds defaults if they don't exist yet. Safe to call
     on every app startup."""
     database_url = _database_url()
     if not database_url:
@@ -116,15 +114,7 @@ def init_db():
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(SCHEMA)
-            cur.execute("SELECT name FROM themes")
-            existing = {row["name"] for row in cur.fetchall()}
-            for i, theme in enumerate(SEED_THEMES):
-                if theme not in existing:
-                    is_current = i == len(SEED_THEMES) - 1
-                    cur.execute(
-                        "INSERT INTO themes (name, is_current, created_at) VALUES (%s, %s, %s)",
-                        (theme, is_current, now_iso()),
-                    )
+            cur.execute(DROP_THEMES)
             cur.execute(
                 """INSERT INTO settings (key, value) VALUES ('intro_text', %s)
                    ON CONFLICT (key) DO NOTHING""",

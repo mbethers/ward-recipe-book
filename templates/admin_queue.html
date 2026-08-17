@@ -14,7 +14,7 @@
       <a class="admin-list-item" href="{{ url_for('admin_recipe_edit', recipe_id=r.id) }}">
         {% if r.source_image_path %}<span class="badge badge-muted">📷 from photo/PDF</span>{% endif %}
         <strong>{{ r.name }}</strong>
-        <span class="muted">{{ r.category }} &middot; {{ r.theme_tag }} &middot; by {{ r.submitter_name }}</span>
+        <span class="muted">{{ r.category }} &middot; by {{ r.submitter_name }}</span>
       </a>
     {% endfor %}
   </div>

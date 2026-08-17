@@ -24,8 +24,6 @@
     </select>
   </label>
 
-  {% with field_prefix = "type" %}{% include "_theme_field.html" %}{% endwith %}
-
   <label>Ingredients <span class="hint">(one per line)</span>
     <textarea name="ingredients" rows="6" placeholder="2 cups flour&#10;1 tsp salt&#10;..."></textarea>
   </label>
@@ -52,8 +50,6 @@
   <label>Your name
     <input type="text" name="submitter_name" required>
   </label>
-
-  {% with field_prefix = "photo" %}{% include "_theme_field.html" %}{% endwith %}
 
   <label>Photo or PDF of the recipe
     <input type="file" name="source_file" accept="image/*,.pdf,application/pdf" required>

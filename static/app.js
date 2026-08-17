@@ -31,11 +31,3 @@ document.addEventListener("submit", (event) => {
       ? "Reading your photo… (can take up to a minute)"
       : "Please wait…";
 });
-
-// Shows/hides the "new theme" text field when "+ Add a new theme..." is picked.
-window.__toggleNewTheme = function (selectEl) {
-  const prefix = selectEl.id.replace("_theme_tag", "");
-  const wrap = document.getElementById(prefix + "_new_theme_wrap");
-  if (!wrap) return;
-  wrap.style.display = selectEl.value === "__new__" ? "" : "none";
-};
