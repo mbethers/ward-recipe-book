@@ -45,9 +45,6 @@
   <div class="recipe-grid">
     {% for r in recipes %}
       <a class="recipe-card" href="{{ url_for('recipe_detail', recipe_id=r.id) }}">
-        {% if r.photo_path or r.gallery_photo %}
-          <img class="recipe-card-photo" src="{{ r.photo_path or r.gallery_photo }}" alt="{{ r.name }}" loading="lazy">
-        {% endif %}
         <div class="recipe-card-body">
           <span class="badge">{{ r.category }}</span>
           {% if r.cuisine %}<span class="badge badge-cuisine">{{ r.cuisine }}</span>{% endif %}
@@ -60,6 +57,9 @@
             </p>
           {% endif %}
         </div>
+        {% if r.photo_path or r.gallery_photo %}
+          <img class="recipe-card-photo" src="{{ r.photo_path or r.gallery_photo }}" alt="{{ r.name }}" loading="lazy">
+        {% endif %}
       </a>
     {% endfor %}
   </div>
