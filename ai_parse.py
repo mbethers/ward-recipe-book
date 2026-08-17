@@ -1,6 +1,7 @@
 """Sends a recipe photo or PDF to Claude and gets back structured JSON."""
 import base64
 import json
+import logging
 import os
 import re
 
@@ -123,3 +124,47 @@ def parse_recipe(file_bytes: bytes, media_type: str, use_better_model: bool = Fa
         "story": (data.get("story") or "").strip(),
         "parse_model": model,
     }
+
+
+PROOFREAD_SYSTEM_PROMPT = """You are proofreading a submission to a church ward recipe \
+book, looking only for clear, high-confidence spelling or wording mistakes - e.g. \
+"Belgium Waffles" almost certainly should be "Belgian Waffles" (country name used \
+instead of the correct adjective).
+
+Return ONLY valid JSON, no preamble, no markdown code fences: {"issues": ["short note", ...]}
+
+Do NOT flag:
+- Personal names, nicknames, or family names (e.g. "Grammy Jo's Fruit Salad" is fine as-is)
+- Regional, ethnic, or foreign ingredient/dish names that are correct as written
+- Informal or conversational phrasing, abbreviations, or style choices
+- Anything you are not genuinely confident is actually a mistake
+
+Flag at most 5 issues. If nothing meets that bar, return {"issues": []} - most \
+submissions should get an empty list. Each issue should be one short, specific \
+sentence (e.g. "\\"Belgium Waffles\\" - did you mean \\"Belgian Waffles\\"?").
+"""
+
+
+def proofread_recipe(name: str, ingredients: str, instructions: str, story: str) -> list[str]:
+    """Best-effort spelling/wording check. Never raises - on any failure
+    (no API key, timeout, bad response) it just returns no issues, since this
+    is a nice-to-have that should never block a submission."""
+    try:
+        client = _client()
+        text = (
+            f"Recipe name: {name}\n\nIngredients:\n{ingredients}\n\n"
+            f"Instructions:\n{instructions}\n\nStory/memory: {story}"
+        )
+        message = client.messages.create(
+            model=DEFAULT_MODEL,
+            max_tokens=500,
+            system=PROOFREAD_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": text}],
+        )
+        raw_text = "".join(block.text for block in message.content if block.type == "text")
+        data = _extract_json(raw_text)
+        issues = data.get("issues") or []
+        return [str(i).strip() for i in issues if str(i).strip()][:5]
+    except Exception as exc:
+        logging.getLogger(__name__).warning("Proofreading skipped: %s", exc)
+        return []

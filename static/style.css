@@ -338,6 +338,17 @@ form textarea { resize: vertical; }
   color: var(--ink);
   line-height: 1.5;
 }
+.proofreading-notes {
+  background: #fdf3e7;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--terracotta);
+  border-radius: 10px;
+  padding: 12px 18px;
+  margin-bottom: 20px;
+}
+.proofreading-notes h3 { margin: 0 0 6px; font-size: 0.95rem; }
+.proofreading-notes ul { margin: 0; padding-left: 20px; }
+.proofreading-notes li { margin-bottom: 4px; }
 
 /* Ratings & reviews */
 .star-display { color: var(--terracotta); letter-spacing: 1px; }

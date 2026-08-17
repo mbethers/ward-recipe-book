@@ -91,6 +91,13 @@ ADD_SOURCE_URL = """
 ALTER TABLE recipes ADD COLUMN IF NOT EXISTS source_url TEXT NOT NULL DEFAULT '';
 """
 
+# Newline-separated list of possible typos/wording issues Claude flagged at
+# submission time (see ai_parse.proofread_recipe) - shown to the admin during
+# review, never auto-applied. Safe to run on every startup.
+ADD_PROOFREADING_NOTES = """
+ALTER TABLE recipes ADD COLUMN IF NOT EXISTS proofreading_notes TEXT NOT NULL DEFAULT '';
+"""
+
 DEFAULT_INTRO_TEXT = (
     "Welcome to the University (Married Student) Ward's Cookbook. We invite you "
     "to add your own favorite recipes, then make & comment on the recipes of "
@@ -152,6 +159,7 @@ def init_db():
             cur.execute(DROP_THEMES)
             cur.execute(ADD_CUISINE_AND_DIETARY)
             cur.execute(ADD_SOURCE_URL)
+            cur.execute(ADD_PROOFREADING_NOTES)
             cur.execute(
                 """INSERT INTO settings (key, value) VALUES ('intro_text', %s)
                    ON CONFLICT (key) DO NOTHING""",

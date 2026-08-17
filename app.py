@@ -18,7 +18,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 import psycopg
 
 import db
-from ai_parse import ParseError, parse_recipe
+from ai_parse import ParseError, parse_recipe, proofread_recipe
 import image_utils
 import email_utils
 import storage
@@ -57,6 +57,15 @@ def _notify_admin(subject: str, body: str) -> None:
         email_utils.send_admin_notification(subject, body)
     except RuntimeError as exc:
         app.logger.warning("Admin notification email not sent: %s", exc)
+
+
+def _run_proofreading(name: str, ingredients: str, instructions: str, story: str) -> str:
+    """Flags likely typos (e.g. "Belgium Waffles") for the admin to see during
+    review - suggestions only, nothing is auto-changed. proofread_recipe()
+    already never raises, so this is just here to turn a list into storage
+    format."""
+    issues = proofread_recipe(name, ingredients, instructions, story)
+    return "\n".join(issues)
 
 
 @app.context_processor
@@ -275,12 +284,17 @@ def submit_text():
     if photo and photo.filename:
         photo_url = _store_dish_photo(photo)
 
+    ingredients = (form.get("ingredients") or "").strip()
+    instructions = (form.get("instructions") or "").strip()
+    story = (form.get("story") or "").strip()
+    proofreading_notes = _run_proofreading(name, ingredients, instructions, story)
+
     conn = db.get_db()
     new_id = conn.execute(
         """INSERT INTO recipes
            (name, submitter_name, category, cuisine, dietary_tags, ingredients,
-            instructions, story, photo_path, status, submitted_at)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s)
+            instructions, story, photo_path, status, submitted_at, proofreading_notes)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)
            RETURNING id""",
         (
             name,
@@ -288,11 +302,12 @@ def submit_text():
             category,
             cuisine,
             dietary_tags,
-            (form.get("ingredients") or "").strip(),
-            (form.get("instructions") or "").strip(),
-            (form.get("story") or "").strip(),
+            ingredients,
+            instructions,
+            story,
             photo_url,
             db.now_iso(),
+            proofreading_notes,
         ),
     ).fetchone()["id"]
     conn.commit()
@@ -356,13 +371,19 @@ def submit_photo():
         parse_error = str(exc)
         app.logger.error("Claude parse failed: %s", exc)
 
+    proofreading_notes = ""
+    if not parse_error:
+        proofreading_notes = _run_proofreading(
+            parsed["name"], parsed["ingredients"], parsed["instructions"], parsed["story"]
+        )
+
     conn = db.get_db()
     display_name = parsed["name"] or "(untitled - needs review)"
     new_id = conn.execute(
         """INSERT INTO recipes
            (name, submitter_name, category, cuisine, ingredients, instructions,
-            story, source_image_path, status, submitted_at, parse_model)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)
+            story, source_image_path, status, submitted_at, parse_model, proofreading_notes)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s)
            RETURNING id""",
         (
             display_name,
@@ -375,6 +396,7 @@ def submit_photo():
             source_url,
             db.now_iso(),
             parsed.get("parse_model"),
+            proofreading_notes,
         ),
     ).fetchone()["id"]
     conn.commit()
@@ -412,13 +434,19 @@ def submit_url():
                   "instructions": "", "story": "", "parse_model": None}
         final_url = recipe_url
 
+    proofreading_notes = ""
+    if parsed["name"]:
+        proofreading_notes = _run_proofreading(
+            parsed["name"], parsed["ingredients"], parsed["instructions"], parsed["story"]
+        )
+
     conn = db.get_db()
     display_name = parsed["name"] or "(untitled - needs review)"
     new_id = conn.execute(
         """INSERT INTO recipes
            (name, submitter_name, category, cuisine, ingredients, instructions,
-            story, source_url, status, submitted_at, parse_model)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)
+            story, source_url, status, submitted_at, parse_model, proofreading_notes)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s)
            RETURNING id""",
         (
             display_name,
@@ -431,6 +459,7 @@ def submit_url():
             final_url,
             db.now_iso(),
             parsed.get("parse_model"),
+            proofreading_notes,
         ),
     ).fetchone()["id"]
     conn.commit()
@@ -547,7 +576,8 @@ def _save_recipe_fields(conn, recipe_id, form):
 
     conn.execute(
         """UPDATE recipes SET name=%s, submitter_name=%s, category=%s, cuisine=%s,
-           dietary_tags=%s, ingredients=%s, instructions=%s, story=%s WHERE id=%s""",
+           dietary_tags=%s, ingredients=%s, instructions=%s, story=%s,
+           proofreading_notes='' WHERE id=%s""",
         (
             (form.get("name") or "").strip(),
             (form.get("submitter_name") or "").strip(),

@@ -25,6 +25,17 @@
   {% endif %}
 
   <div class="admin-fields">
+    {% if recipe.proofreading_notes %}
+      <div class="proofreading-notes">
+        <h3>🔍 Possible issues to double-check</h3>
+        <ul>
+          {% for note in recipe.proofreading_notes.split('\n') if note.strip() %}
+            <li>{{ note }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
     <h2>Recipe details</h2>
     <form method="post" action="{{ url_for('admin_recipe_update', recipe_id=recipe.id) }}" id="recipe-edit-form">
       <label>Recipe name
