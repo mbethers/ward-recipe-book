@@ -122,6 +122,7 @@ def index():
         q=q,
         active_category=category,
         active_theme=theme,
+        intro_text=db.get_setting("intro_text", db.DEFAULT_INTRO_TEXT),
     )
 
 
@@ -501,6 +502,18 @@ def admin_review_delete(review_id):
     conn.commit()
     flash("Review deleted.")
     return redirect(url_for("recipe_detail", recipe_id=review["recipe_id"]) + "#reviews")
+
+
+@app.route("/admin/settings", methods=["GET", "POST"])
+@admin_required
+def admin_settings():
+    if request.method == "POST":
+        db.set_setting("intro_text", (request.form.get("intro_text") or "").strip())
+        flash("Homepage welcome message saved.")
+        return redirect(url_for("admin_settings"))
+
+    intro_text = db.get_setting("intro_text", db.DEFAULT_INTRO_TEXT)
+    return render_template("admin_settings.html", intro_text=intro_text)
 
 
 @app.route("/admin/themes", methods=["GET", "POST"])

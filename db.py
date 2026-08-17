@@ -49,9 +49,36 @@ CREATE TABLE IF NOT EXISTS reviews (
     comment TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT ''
+);
 """
 
 SEED_THEMES = ["Cold Cereal", "Favorite Family Recipes"]
+
+DEFAULT_INTRO_TEXT = (
+    "Welcome to the University Ward's Cookbook. We invite you to add your own "
+    "recipes, especially those you've made and shared at ward events, like our "
+    "Linger Longers."
+)
+
+
+def get_setting(key: str, default: str = "") -> str:
+    conn = get_db()
+    row = conn.execute("SELECT value FROM settings WHERE key = %s", (key,)).fetchone()
+    return row["value"] if row else default
+
+
+def set_setting(key: str, value: str):
+    conn = get_db()
+    conn.execute(
+        """INSERT INTO settings (key, value) VALUES (%s, %s)
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""",
+        (key, value),
+    )
+    conn.commit()
 
 
 def now_iso() -> str:
@@ -98,6 +125,11 @@ def init_db():
                         "INSERT INTO themes (name, is_current, created_at) VALUES (%s, %s, %s)",
                         (theme, is_current, now_iso()),
                     )
+            cur.execute(
+                """INSERT INTO settings (key, value) VALUES ('intro_text', %s)
+                   ON CONFLICT (key) DO NOTHING""",
+                (DEFAULT_INTRO_TEXT,),
+            )
         conn.commit()
 
 

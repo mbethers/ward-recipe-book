@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Homepage text - Admin{% endblock %}
+{% block content %}
+
+{% include "_admin_nav.html" %}
+
+<h1>Homepage welcome message</h1>
+<p class="hint">Shown in a banner at the top of the homepage, above the search bar - the
+  first thing anyone sees when they open the site.</p>
+
+<form method="post" class="settings-form">
+  <label>Welcome message
+    <textarea name="intro_text" rows="5">{{ intro_text }}</textarea>
+  </label>
+  <button type="submit" class="primary-btn">Save</button>
+</form>
+
+{% endblock %}

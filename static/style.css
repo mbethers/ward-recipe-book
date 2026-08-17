@@ -282,6 +282,17 @@ form textarea { resize: vertical; }
 .add-theme-form { margin-top: 20px; display: flex; align-items: flex-end; gap: 10px; }
 .add-theme-form label { flex: 1; margin-bottom: 0; }
 
+.welcome-banner {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--terracotta);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
 /* Ratings & reviews */
 .star-display { color: var(--terracotta); letter-spacing: 1px; }
 .rating-summary { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.95rem; margin: 4px 0 16px; }

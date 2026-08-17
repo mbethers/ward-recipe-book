@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
 
+{% if intro_text %}
+  <div class="welcome-banner">{{ intro_text }}</div>
+{% endif %}
+
 <form class="search-bar" method="get" action="{{ url_for('index') }}">
   <input type="search" name="q" placeholder="Search recipes, ingredients, or names..." value="{{ q }}">
   {% if active_category %}<input type="hidden" name="category" value="{{ active_category }}">{% endif %}
