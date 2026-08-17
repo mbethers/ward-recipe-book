@@ -41,6 +41,12 @@
           <span class="badge">{{ r.category }}</span>
           <h3>{{ r.name }}</h3>
           <p class="muted">by {{ r.submitter_name }} &middot; {{ r.theme_tag }}</p>
+          {% if r.review_count %}
+            <p class="rating-summary rating-summary-small">
+              <span class="star-display">{% for i in range(1,6) %}{{ '★' if i <= r.avg_rating + 0.5 else '☆' }}{% endfor %}</span>
+              {{ '%.1f'|format(r.avg_rating) }} ({{ r.review_count }})
+            </p>
+          {% endif %}
         </div>
       </a>
     {% endfor %}

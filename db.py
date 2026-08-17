@@ -40,6 +40,15 @@ CREATE TABLE IF NOT EXISTS themes (
     is_current BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS reviews (
+    id SERIAL PRIMARY KEY,
+    recipe_id INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+    reviewer_name TEXT NOT NULL DEFAULT '',
+    rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
 """
 
 SEED_THEMES = ["Cold Cereal", "Favorite Family Recipes"]

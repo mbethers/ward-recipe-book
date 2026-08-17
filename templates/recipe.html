@@ -13,6 +13,13 @@
   <h1>{{ recipe.name }}</h1>
   <p class="muted">Submitted by {{ recipe.submitter_name }} &middot; {{ recipe.theme_tag }}</p>
 
+  {% if reviews %}
+    <p class="rating-summary">
+      <span class="star-display" aria-label="{{ '%.1f'|format(avg_rating) }} out of 5 stars">{% for i in range(1,6) %}{{ '★' if i <= avg_rating + 0.5 else '☆' }}{% endfor %}</span>
+      {{ '%.1f'|format(avg_rating) }} ({{ reviews|length }} rating{{ 's' if reviews|length != 1 }})
+    </p>
+  {% endif %}
+
   {% if recipe.story %}
     <blockquote class="story">{{ recipe.story }}</blockquote>
   {% endif %}
@@ -32,6 +39,48 @@
   </ol>
 
   <button class="print-btn no-print" onclick="window.print()">🖨️ Print / save this recipe</button>
+
+  <section id="reviews" class="reviews-section no-print">
+    <h2>Ratings &amp; reviews</h2>
+
+    {% if reviews %}
+      <ul class="review-list">
+        {% for rv in reviews %}
+          <li class="review">
+            <span class="star-display" aria-label="{{ rv.rating }} out of 5 stars">{% for i in range(1,6) %}{{ '★' if i <= rv.rating else '☆' }}{% endfor %}</span>
+            <strong>{{ rv.reviewer_name }}</strong>
+            {% if rv.comment %}<p>{{ rv.comment }}</p>{% endif %}
+            {% if session.is_admin %}
+              <form method="post" action="{{ url_for('admin_review_delete', review_id=rv.id) }}"
+                    onsubmit="return confirm('Delete this review?');" class="review-admin-delete">
+                <button type="submit" class="link-btn">🗑️ Delete</button>
+              </form>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">No reviews yet - be the first to make this and share what you thought!</p>
+    {% endif %}
+
+    <h3>Made this? Leave a rating</h3>
+    <form method="post" action="{{ url_for('submit_review', recipe_id=recipe.id) }}" class="review-form">
+      <div class="star-input">
+        <input type="radio" id="star5" name="rating" value="5" required><label for="star5" title="5 stars">★</label>
+        <input type="radio" id="star4" name="rating" value="4"><label for="star4" title="4 stars">★</label>
+        <input type="radio" id="star3" name="rating" value="3"><label for="star3" title="3 stars">★</label>
+        <input type="radio" id="star2" name="rating" value="2"><label for="star2" title="2 stars">★</label>
+        <input type="radio" id="star1" name="rating" value="1"><label for="star1" title="1 star">★</label>
+      </div>
+      <label>Your name
+        <input type="text" name="reviewer_name" required>
+      </label>
+      <label>Comment <span class="hint">(optional)</span>
+        <textarea name="comment" rows="3" placeholder="How did it turn out? Any tweaks you made?"></textarea>
+      </label>
+      <button type="submit" class="secondary-btn">Submit rating</button>
+    </form>
+  </section>
 </article>
 
 {% endblock %}

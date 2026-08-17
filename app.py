@@ -80,19 +80,24 @@ def index():
     category = request.args.get("category", "").strip()
     theme = request.args.get("theme", "").strip()
 
-    sql = "SELECT * FROM recipes WHERE status = 'published'"
+    sql = """SELECT r.*,
+                    COALESCE(AVG(rv.rating), 0)::float AS avg_rating,
+                    COUNT(rv.id) AS review_count
+             FROM recipes r
+             LEFT JOIN reviews rv ON rv.recipe_id = r.id
+             WHERE r.status = 'published'"""
     params = []
     if q:
-        sql += " AND (name ILIKE %s OR ingredients ILIKE %s OR submitter_name ILIKE %s)"
+        sql += " AND (r.name ILIKE %s OR r.ingredients ILIKE %s OR r.submitter_name ILIKE %s)"
         like = f"%{q}%"
         params += [like, like, like]
     if category:
-        sql += " AND category = %s"
+        sql += " AND r.category = %s"
         params.append(category)
     if theme:
-        sql += " AND theme_tag = %s"
+        sql += " AND r.theme_tag = %s"
         params.append(theme)
-    sql += " ORDER BY LOWER(name) ASC"
+    sql += " GROUP BY r.id ORDER BY LOWER(r.name) ASC"
 
     recipes = conn.execute(sql, params).fetchall()
     themes = get_themes()
@@ -115,7 +120,40 @@ def recipe_detail(recipe_id):
     ).fetchone()
     if not recipe:
         abort(404)
-    return render_template("recipe.html", recipe=recipe)
+    reviews = conn.execute(
+        "SELECT * FROM reviews WHERE recipe_id = %s ORDER BY created_at DESC", (recipe_id,)
+    ).fetchall()
+    avg_rating = sum(r["rating"] for r in reviews) / len(reviews) if reviews else 0
+    return render_template("recipe.html", recipe=recipe, reviews=reviews, avg_rating=avg_rating)
+
+
+@app.route("/recipe/<int:recipe_id>/review", methods=["POST"])
+def submit_review(recipe_id):
+    conn = db.get_db()
+    recipe = conn.execute(
+        "SELECT id FROM recipes WHERE id = %s AND status = 'published'", (recipe_id,)
+    ).fetchone()
+    if not recipe:
+        abort(404)
+
+    reviewer_name = (request.form.get("reviewer_name") or "").strip()
+    try:
+        rating = int(request.form.get("rating", ""))
+    except ValueError:
+        rating = 0
+
+    if not reviewer_name or rating < 1 or rating > 5:
+        flash("Please enter your name and pick a star rating.")
+        return redirect(url_for("recipe_detail", recipe_id=recipe_id) + "#reviews")
+
+    conn.execute(
+        """INSERT INTO reviews (recipe_id, reviewer_name, rating, comment, created_at)
+           VALUES (%s, %s, %s, %s, %s)""",
+        (recipe_id, reviewer_name, rating, (request.form.get("comment") or "").strip(), db.now_iso()),
+    )
+    conn.commit()
+    flash("Thanks for your review!")
+    return redirect(url_for("recipe_detail", recipe_id=recipe_id) + "#reviews")
 
 
 @app.route("/submit", methods=["GET"])
@@ -437,6 +475,19 @@ def admin_recipe_reprocess(recipe_id):
     conn.commit()
     flash("Reprocessed with the better model.")
     return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
+
+
+@app.route("/admin/review/<int:review_id>/delete", methods=["POST"])
+@admin_required
+def admin_review_delete(review_id):
+    conn = db.get_db()
+    review = conn.execute("SELECT recipe_id FROM reviews WHERE id = %s", (review_id,)).fetchone()
+    if not review:
+        abort(404)
+    conn.execute("DELETE FROM reviews WHERE id = %s", (review_id,))
+    conn.commit()
+    flash("Review deleted.")
+    return redirect(url_for("recipe_detail", recipe_id=review["recipe_id"]) + "#reviews")
 
 
 @app.route("/admin/themes", methods=["GET", "POST"])
