@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}One moment - {{ ward_name }} Cookbook{% endblock %}
+{% block content %}
+<div class="confirmation">
+  <div class="confirmation-icon">🍳</div>
+  <h1>Warming up the kitchen...</h1>
+  <p class="muted">
+    The cookbook's database is just waking up after a quiet spell - this
+    usually takes just a few seconds. This page will try again on its own,
+    or tap below whenever you're ready.
+  </p>
+  <div class="confirmation-actions">
+    <button type="button" class="primary-btn" onclick="window.location.reload()">Try again now</button>
+  </div>
+</div>
+<script>
+  setTimeout(function () { window.location.reload(); }, 6000);
+</script>
+{% endblock %}

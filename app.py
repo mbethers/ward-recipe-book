@@ -15,6 +15,7 @@ except ImportError:
 
 from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
+import psycopg
 
 import db
 from ai_parse import ParseError, parse_recipe
@@ -615,6 +616,15 @@ def admin_settings():
 def too_large(_exc):
     flash("That file is too large (15 MB max). Try a smaller photo.")
     return redirect(url_for("submit_form"))
+
+
+@app.errorhandler(psycopg.OperationalError)
+def db_unavailable(exc):
+    """The database is unreachable - most likely Supabase's free-tier project
+    waking up from a pause, or a brief network hiccup. Show a friendly
+    self-refreshing page instead of a raw 500 error."""
+    app.logger.warning("Database temporarily unavailable: %s", exc)
+    return render_template("db_warming_up.html"), 503
 
 
 if __name__ == "__main__":
