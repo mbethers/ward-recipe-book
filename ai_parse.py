@@ -126,18 +126,31 @@ def parse_recipe(file_bytes: bytes, media_type: str, use_better_model: bool = Fa
     }
 
 
-PROOFREAD_SYSTEM_PROMPT = """You are proofreading a submission to a church ward recipe \
-book, looking only for clear, high-confidence spelling or wording mistakes - e.g. \
-"Belgium Waffles" almost certainly should be "Belgian Waffles" (country name used \
-instead of the correct adjective).
+PROOFREAD_SYSTEM_PROMPT = """You are reviewing a submission to a church ward recipe book \
+before it's published, looking for two kinds of problems:
+
+1. Clear, high-confidence spelling or wording mistakes - e.g. "Belgium Waffles" almost \
+certainly should be "Belgian Waffles" (country name used instead of the correct adjective).
+
+2. Signs the ingredients/instructions are unedited AI-chat or copy-paste output rather \
+than a clean recipe - e.g. emoji used as section headers (🍋, 🛒, ⭐, 🔥), the recipe \
+title or an "Ingredients"/"Instructions" label repeated inside the ingredients/\
+instructions text itself, leftover markdown dividers like "---", conversational asides \
+addressed to the reader ("don't worry, it thickens naturally on its own"), or entire \
+bonus sections that aren't actually ingredients or steps (e.g. "Why this recipe works", \
+"Pro tips"). Normal recipe organization like "For the crust:" or "Part 1: crust" is fine \
+and should NOT be flagged - only flag actual leftover chat/markdown artifacts and \
+non-recipe content. Flag this as one combined issue naming what looks unedited, not one \
+issue per line.
 
 Return ONLY valid JSON, no preamble, no markdown code fences: {"issues": ["short note", ...]}
 
 Do NOT flag:
 - Personal names, nicknames, or family names (e.g. "Grammy Jo's Fruit Salad" is fine as-is)
 - Regional, ethnic, or foreign ingredient/dish names that are correct as written
-- Informal or conversational phrasing, abbreviations, or style choices
-- Anything you are not genuinely confident is actually a mistake
+- Informal or conversational phrasing, abbreviations, or normal style choices
+- A short personal story/memory in the story field - that's wanted content, not clutter
+- Anything you are not genuinely confident is actually a problem
 
 Flag at most 5 issues. If nothing meets that bar, return {"issues": []} - most \
 submissions should get an empty list. Each issue should be one short, specific \
