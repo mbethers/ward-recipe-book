@@ -67,9 +67,9 @@ DROP TABLE IF EXISTS themes;
 """
 
 DEFAULT_INTRO_TEXT = (
-    "Welcome to the University Ward's Cookbook. We invite you to add your own "
-    "recipes, especially those you've made and shared at ward events, like our "
-    "Linger Longers."
+    "Welcome to the University (Married Student) Ward's Cookbook. We invite you "
+    "to add your own favorite recipes, then make & comment on the recipes of "
+    "others."
 )
 
 
