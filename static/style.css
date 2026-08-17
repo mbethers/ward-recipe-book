@@ -173,14 +173,6 @@ h2 { font-size: 1.1rem; margin: 20px 0 8px; }
 }
 .recipe-card:hover { text-decoration: none; border-color: var(--terracotta); }
 .recipe-card-photo { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; background: var(--border); }
-.recipe-card-photo-placeholder {
-  display: flex; align-items: center; justify-content: center;
-  font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
-  color: var(--danger);
-  background: var(--border);
-  border: 2px dashed var(--danger);
-  box-sizing: border-box;
-}
 .recipe-card-body { padding: 10px 12px; }
 .recipe-card-body h3 { margin: 4px 0; font-size: 1rem; }
 
@@ -216,6 +208,13 @@ h2 { font-size: 1.1rem; margin: 20px 0 8px; }
 }
 .ingredient-list, .instruction-list { padding-left: 20px; }
 .ingredient-list li, .instruction-list li { margin-bottom: 6px; }
+.ingredient-header {
+  list-style: none;
+  margin-left: -20px;
+  font-weight: 700;
+  margin-top: 10px;
+}
+.ingredient-header:first-child { margin-top: 0; }
 .print-btn {
   margin-top: 20px;
   padding: 10px 18px;
@@ -246,6 +245,8 @@ form input[type=file], form select, form textarea {
   color: var(--ink);
 }
 form textarea { resize: vertical; }
+.field-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.field-row label { flex: 1 1 140px; }
 .checkbox-group { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: -4px 0 16px; }
 .checkbox-group .checkbox-option {
   display: flex;
@@ -352,6 +353,7 @@ form textarea { resize: vertical; }
 
 /* Ratings & reviews */
 .star-display { color: var(--terracotta); letter-spacing: 1px; }
+.recipe-meta { display: flex; gap: 16px; color: var(--muted); font-size: 0.9rem; margin: 6px 0 0; }
 .rating-summary { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.95rem; margin: 4px 0 16px; }
 .rating-summary-small { font-size: 0.85rem; margin: 4px 0 0; }
 

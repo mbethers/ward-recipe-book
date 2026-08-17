@@ -16,6 +16,12 @@
   {% endfor %}
   <h1>{{ recipe.name }}</h1>
   <p class="muted">Submitted by {{ recipe.submitter_name }} - added {{ (recipe.reviewed_at or recipe.submitted_at)|shortdate }}</p>
+  {% if recipe.prep_time or recipe.servings %}
+    <p class="recipe-meta">
+      {% if recipe.prep_time %}<span>⏱ {{ recipe.prep_time }}</span>{% endif %}
+      {% if recipe.servings %}<span>🍽 Serves {{ recipe.servings }}</span>{% endif %}
+    </p>
+  {% endif %}
 
   {% if reviews %}
     <p class="rating-summary">
@@ -31,14 +37,15 @@
   <h2>Ingredients</h2>
   <ul class="ingredient-list">
     {% for line in recipe.ingredients.split('\n') if line.strip() %}
-      <li>{{ line }}</li>
+      {% set item = line|clean_ingredient %}
+      <li class="{{ 'ingredient-header' if item.is_header }}">{{ item.text }}</li>
     {% endfor %}
   </ul>
 
   <h2>Instructions</h2>
   <ol class="instruction-list">
     {% for step in recipe.instructions.split('\n') if step.strip() %}
-      <li>{{ step }}</li>
+      <li>{{ step|clean_step }}</li>
     {% endfor %}
   </ol>
 

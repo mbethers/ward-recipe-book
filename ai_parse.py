@@ -22,6 +22,8 @@ exactly this shape:
   "name": "recipe name",
   "category": "one of {", ".join(CATEGORIES)} - your best guess",
   "cuisine": "one of {", ".join(CUISINES)} - your best guess, or empty string if you can't tell",
+  "prep_time": "total time to make it, as written on the card (e.g. '30 min', '1 hr 15 min'), or empty string if not shown",
+  "servings": "how many it serves/yields, as written on the card (e.g. '8', '8-10', 'makes 2 dozen'), or empty string if not shown",
   "ingredients": ["ingredient line 1", "ingredient line 2"],
   "instructions": ["step 1", "step 2"],
   "story": "any personal note, memory, or story visible on the card, or empty string if none"
@@ -34,6 +36,8 @@ Rules:
 - If you cannot determine a field at all, use an empty string or empty array - never \
 omit a key.
 - Do not add ingredients, steps, or commentary that are not visibly on the source.
+- Do not guess at prep_time or servings if they aren't actually written on the card -
+leave them blank rather than estimating.
 - Do NOT guess at dietary/allergen suitability (vegan, gluten-free, dairy-free, etc.) - \
 that isn't part of this task and is left for a human to confirm.
 """
@@ -119,6 +123,8 @@ def parse_recipe(file_bytes: bytes, media_type: str, use_better_model: bool = Fa
         "name": (data.get("name") or "").strip(),
         "category": category,
         "cuisine": cuisine,
+        "prep_time": (data.get("prep_time") or "").strip(),
+        "servings": (data.get("servings") or "").strip(),
         "ingredients": "\n".join(str(i).strip() for i in ingredients if str(i).strip()),
         "instructions": "\n".join(str(s).strip() for s in instructions if str(s).strip()),
         "story": (data.get("story") or "").strip(),

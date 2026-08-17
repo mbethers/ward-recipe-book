@@ -5,6 +5,7 @@ Admin (/admin, password-gated): review pending submissions, edit, approve/reject
 """
 import functools
 import os
+import re
 from datetime import datetime
 
 try:
@@ -71,6 +72,35 @@ def _run_proofreading(name: str, ingredients: str, instructions: str, story: str
 @app.context_processor
 def inject_globals():
     return {"ward_name": WARD_NAME}
+
+
+_BULLET_PREFIX = re.compile(r"^[•◦▪‣∙·*»]\s+|^[-–—]\s+")
+_NUMBERED_PREFIX = re.compile(r"^(?:step\s*)?\d+[.):]\s+", re.IGNORECASE)
+
+
+def _strip_pasted_marker(text: str) -> str:
+    """Removes a leading bullet/number marker a pasted-in line already had -
+    our own <li>/<ol> already draws one, so a leftover one shows as a double
+    bullet/number (e.g. a pasted "- 2 cups flour" under an already-bulleted <li>)."""
+    text = (text or "").strip()
+    text = _BULLET_PREFIX.sub("", text)
+    text = _NUMBERED_PREFIX.sub("", text)
+    return text.strip()
+
+
+@app.template_filter("clean_step")
+def clean_step(line):
+    return _strip_pasted_marker(line)
+
+
+@app.template_filter("clean_ingredient")
+def clean_ingredient(line):
+    """Same cleanup as clean_step, plus flags section labels like "Red Sauce:"
+    so the template can render them as an unbulleted sub-heading instead of
+    an ingredient with its own bullet."""
+    text = _strip_pasted_marker(line)
+    is_header = text.endswith(":") and len(text) <= 40
+    return {"text": text, "is_header": is_header}
 
 
 @app.template_filter("shortdate")
@@ -278,6 +308,8 @@ def submit_text():
         cuisine = ""
 
     dietary_tags = ",".join(t for t in form.getlist("dietary") if t in db.DIETARY_TAGS)
+    prep_time = (form.get("prep_time") or "").strip()
+    servings = (form.get("servings") or "").strip()
 
     photo_url = None
     photo = request.files.get("photo")
@@ -292,9 +324,9 @@ def submit_text():
     conn = db.get_db()
     new_id = conn.execute(
         """INSERT INTO recipes
-           (name, submitter_name, category, cuisine, dietary_tags, ingredients,
-            instructions, story, photo_path, status, submitted_at, proofreading_notes)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)
+           (name, submitter_name, category, cuisine, dietary_tags, prep_time, servings,
+            ingredients, instructions, story, photo_path, status, submitted_at, proofreading_notes)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)
            RETURNING id""",
         (
             name,
@@ -302,6 +334,8 @@ def submit_text():
             category,
             cuisine,
             dietary_tags,
+            prep_time,
+            servings,
             ingredients,
             instructions,
             story,
@@ -359,6 +393,8 @@ def submit_photo():
         "name": "",
         "category": "Other",
         "cuisine": "",
+        "prep_time": "",
+        "servings": "",
         "ingredients": "",
         "instructions": "",
         "story": "",
@@ -381,15 +417,17 @@ def submit_photo():
     display_name = parsed["name"] or "(untitled - needs review)"
     new_id = conn.execute(
         """INSERT INTO recipes
-           (name, submitter_name, category, cuisine, ingredients, instructions,
-            story, source_image_path, status, submitted_at, parse_model, proofreading_notes)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s)
+           (name, submitter_name, category, cuisine, prep_time, servings, ingredients,
+            instructions, story, source_image_path, status, submitted_at, parse_model, proofreading_notes)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s)
            RETURNING id""",
         (
             display_name,
             submitter_name,
             parsed["category"],
             parsed.get("cuisine", ""),
+            parsed.get("prep_time", ""),
+            parsed.get("servings", ""),
             parsed["ingredients"],
             parsed["instructions"],
             parsed["story"],
@@ -430,8 +468,8 @@ def submit_url():
         # worth saving so an admin can look at the link and fill it in by hand,
         # same as a photo/PDF that failed to read.
         app.logger.error("Web recipe parse failed for %s: %s", recipe_url, exc)
-        parsed = {"name": "", "category": "Other", "cuisine": "", "ingredients": "",
-                  "instructions": "", "story": "", "parse_model": None}
+        parsed = {"name": "", "category": "Other", "cuisine": "", "prep_time": "", "servings": "",
+                  "ingredients": "", "instructions": "", "story": "", "parse_model": None}
         final_url = recipe_url
 
     proofreading_notes = ""
@@ -444,15 +482,17 @@ def submit_url():
     display_name = parsed["name"] or "(untitled - needs review)"
     new_id = conn.execute(
         """INSERT INTO recipes
-           (name, submitter_name, category, cuisine, ingredients, instructions,
-            story, source_url, status, submitted_at, parse_model, proofreading_notes)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s)
+           (name, submitter_name, category, cuisine, prep_time, servings, ingredients,
+            instructions, story, source_url, status, submitted_at, parse_model, proofreading_notes)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s)
            RETURNING id""",
         (
             display_name,
             submitter_name,
             parsed["category"],
             parsed.get("cuisine", ""),
+            parsed.get("prep_time", ""),
+            parsed.get("servings", ""),
             parsed["ingredients"],
             parsed["instructions"],
             parsed["story"],
@@ -576,14 +616,16 @@ def _save_recipe_fields(conn, recipe_id, form):
 
     conn.execute(
         """UPDATE recipes SET name=%s, submitter_name=%s, category=%s, cuisine=%s,
-           dietary_tags=%s, ingredients=%s, instructions=%s, story=%s,
-           proofreading_notes='' WHERE id=%s""",
+           dietary_tags=%s, prep_time=%s, servings=%s, ingredients=%s, instructions=%s,
+           story=%s, proofreading_notes='' WHERE id=%s""",
         (
             (form.get("name") or "").strip(),
             (form.get("submitter_name") or "").strip(),
             category,
             cuisine,
             dietary_tags,
+            (form.get("prep_time") or "").strip(),
+            (form.get("servings") or "").strip(),
             (form.get("ingredients") or "").strip(),
             (form.get("instructions") or "").strip(),
             (form.get("story") or "").strip(),
@@ -654,12 +696,14 @@ def admin_recipe_reprocess(recipe_id):
         return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
 
     conn.execute(
-        """UPDATE recipes SET name=%s, category=%s, cuisine=%s, ingredients=%s,
-           instructions=%s, story=%s, parse_model=%s WHERE id=%s""",
+        """UPDATE recipes SET name=%s, category=%s, cuisine=%s, prep_time=%s, servings=%s,
+           ingredients=%s, instructions=%s, story=%s, parse_model=%s WHERE id=%s""",
         (
             parsed["name"] or recipe["name"],
             parsed["category"],
             parsed.get("cuisine") or recipe["cuisine"],
+            parsed.get("prep_time") or recipe["prep_time"],
+            parsed.get("servings") or recipe["servings"],
             parsed["ingredients"],
             parsed["instructions"],
             parsed["story"],

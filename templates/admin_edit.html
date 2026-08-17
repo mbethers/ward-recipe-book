@@ -72,6 +72,15 @@
         {% endfor %}
       </div>
 
+      <div class="field-row">
+        <label>Total prep time
+          <input type="text" name="prep_time" value="{{ recipe.prep_time }}" placeholder="e.g. 30 min">
+        </label>
+        <label>Servings
+          <input type="text" name="servings" value="{{ recipe.servings }}" placeholder="e.g. 8">
+        </label>
+      </div>
+
       <label>Ingredients <span class="hint">(one per line)</span>
         <textarea name="ingredients" rows="8">{{ recipe.ingredients }}</textarea>
       </label>

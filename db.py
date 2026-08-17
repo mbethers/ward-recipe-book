@@ -98,6 +98,13 @@ ADD_PROOFREADING_NOTES = """
 ALTER TABLE recipes ADD COLUMN IF NOT EXISTS proofreading_notes TEXT NOT NULL DEFAULT '';
 """
 
+# Free-text so submitters/admins aren't boxed into a number format ("30 min",
+# "1 hr 15 min", "8-10 servings", "makes 2 dozen"). Safe to run on every startup.
+ADD_PREP_TIME_AND_SERVINGS = """
+ALTER TABLE recipes ADD COLUMN IF NOT EXISTS prep_time TEXT NOT NULL DEFAULT '';
+ALTER TABLE recipes ADD COLUMN IF NOT EXISTS servings TEXT NOT NULL DEFAULT '';
+"""
+
 DEFAULT_INTRO_TEXT = (
     "Welcome to the University (Married Student) Ward's Cookbook. We invite you "
     "to add your own favorite recipes, then make & comment on the recipes of "
@@ -160,6 +167,7 @@ def init_db():
             cur.execute(ADD_CUISINE_AND_DIETARY)
             cur.execute(ADD_SOURCE_URL)
             cur.execute(ADD_PROOFREADING_NOTES)
+            cur.execute(ADD_PREP_TIME_AND_SERVINGS)
             cur.execute(
                 """INSERT INTO settings (key, value) VALUES ('intro_text', %s)
                    ON CONFLICT (key) DO NOTHING""",

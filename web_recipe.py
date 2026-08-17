@@ -9,6 +9,7 @@ Two strategies, cheapest/most-reliable first:
 """
 import ipaddress
 import json
+import re
 import socket
 from urllib.parse import urlparse
 
@@ -36,6 +37,8 @@ exactly this shape:
   "name": "recipe name",
   "category": "one of {", ".join(CATEGORIES)} - your best guess",
   "cuisine": "one of {", ".join(CUISINES)} - your best guess, or empty string if you can't tell",
+  "prep_time": "total time to make it, as stated on the page (e.g. '30 min', '1 hr 15 min'), or empty string if not stated",
+  "servings": "how many it serves/yields, as stated on the page (e.g. '8', '8-10', 'makes 2 dozen'), or empty string if not stated",
   "ingredients": ["ingredient line 1", "ingredient line 2"],
   "instructions": ["step 1", "step 2"],
   "story": "any personal note, memory, or story the author included, or empty string if none"
@@ -47,6 +50,8 @@ Rules:
 - If this page doesn't appear to contain a recipe at all, use empty strings/arrays \
 for every field rather than inventing one.
 - Do not add ingredients, steps, or commentary that are not on the page.
+- Do not guess at prep_time or servings if the page doesn't actually state them - \
+leave them blank rather than estimating.
 - Do NOT guess at dietary/allergen suitability (vegan, gluten-free, dairy-free, etc.) - \
 that isn't part of this task and is left for a human to confirm.
 """
@@ -113,6 +118,41 @@ def _fetch_html(url: str) -> tuple[str, str]:
         return current, raw.decode(resp.encoding or "utf-8", errors="replace")
 
     raise FetchError("That link redirected too many times.")
+
+
+_ISO_DURATION = re.compile(r"^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?$")
+
+
+def _friendly_duration(iso: object) -> str:
+    """Converts a schema.org duration like 'PT1H15M' to '1 hr 15 min'.
+    Returns '' if it isn't a duration string we recognize."""
+    if not isinstance(iso, str):
+        return ""
+    match = _ISO_DURATION.match(iso.strip())
+    if not match:
+        return ""
+    days, hours, minutes = match.groups()
+    if not (days or hours or minutes):
+        return ""
+    parts = []
+    if days:
+        parts.append(f"{days} day{'s' if days != '1' else ''}")
+    if hours:
+        parts.append(f"{hours} hr")
+    if minutes:
+        parts.append(f"{minutes} min")
+    return " ".join(parts)
+
+
+def _friendly_yield(value: object) -> str:
+    """schema.org recipeYield can be a string, a number, or a list of either."""
+    if isinstance(value, list):
+        value = value[0] if value else ""
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, str):
+        return value.strip()
+    return ""
 
 
 def _from_json_ld(soup: BeautifulSoup) -> dict | None:
@@ -182,10 +222,19 @@ def _from_json_ld(soup: BeautifulSoup) -> dict | None:
                 # Missing the essentials - not confident enough to skip the AI fallback.
                 continue
 
+            prep_time = (
+                _friendly_duration(item.get("totalTime"))
+                or _friendly_duration(item.get("prepTime"))
+                or _friendly_duration(item.get("cookTime"))
+            )
+            servings = _friendly_yield(item.get("recipeYield"))
+
             return {
                 "name": name.strip(),
                 "category": category,
                 "cuisine": cuisine,
+                "prep_time": prep_time,
+                "servings": servings,
                 "ingredients": "\n".join(str(i).strip() for i in ingredients if str(i).strip()),
                 "instructions": "\n".join(str(s).strip() for s in instructions if str(s).strip()),
                 "story": description.strip()[:1000],
@@ -238,6 +287,8 @@ def _from_page_text(html: str, use_better_model: bool) -> dict:
         "name": (data.get("name") or "").strip(),
         "category": category,
         "cuisine": cuisine,
+        "prep_time": (data.get("prep_time") or "").strip(),
+        "servings": (data.get("servings") or "").strip(),
         "ingredients": "\n".join(str(i).strip() for i in ingredients if str(i).strip()),
         "instructions": "\n".join(str(s).strip() for s in instructions if str(s).strip()),
         "story": (data.get("story") or "").strip(),
