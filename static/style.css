@@ -153,6 +153,7 @@ h2 { font-size: 1.1rem; margin: 20px 0 8px; }
 }
 .chip:hover { text-decoration: none; border-color: var(--terracotta); }
 .chip-active { background: var(--duke-navy); color: #fff; border-color: var(--duke-navy); }
+.chip-dietary.chip-active { background: var(--sage); color: #fff; border-color: var(--sage); }
 
 /* Recipe grid */
 .recipe-grid {
@@ -193,6 +194,12 @@ h2 { font-size: 1.1rem; margin: 20px 0 8px; }
   border-radius: 999px;
 }
 .badge-muted { background: var(--muted); }
+.badge-cuisine {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  margin-left: 4px;
+}
 
 .empty-state { color: var(--muted); padding: 32px 0; text-align: center; }
 
@@ -239,6 +246,15 @@ form input[type=file], form select, form textarea {
   color: var(--ink);
 }
 form textarea { resize: vertical; }
+.checkbox-group { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: -4px 0 16px; }
+.checkbox-group .checkbox-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 400;
+  margin-bottom: 0;
+}
+.checkbox-group .checkbox-option input[type=checkbox] { width: auto; margin: 0; }
 
 .primary-btn, .secondary-btn, .danger-btn {
   padding: 12px 20px;

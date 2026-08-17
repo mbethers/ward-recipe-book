@@ -24,6 +24,22 @@
     </select>
   </label>
 
+  <label>Cuisine <span class="hint">(optional)</span>
+    <select name="cuisine">
+      <option value="">Not sure / doesn't fit a category</option>
+      {% for c in cuisines %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+    </select>
+  </label>
+
+  <label>Dietary <span class="hint">(optional - check all that apply)</span></label>
+  <div class="checkbox-group">
+    {% for tag in dietary_options %}
+      <label class="checkbox-option">
+        <input type="checkbox" name="dietary" value="{{ tag }}"> {{ tag }}
+      </label>
+    {% endfor %}
+  </div>
+
   <label>Ingredients <span class="hint">(one per line)</span>
     <textarea name="ingredients" rows="6" placeholder="2 cups flour&#10;1 tsp salt&#10;..."></textarea>
   </label>

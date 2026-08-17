@@ -8,20 +8,39 @@
 <form class="search-bar" method="get" action="{{ url_for('index') }}">
   <input type="search" name="q" placeholder="Search recipes, ingredients, or names..." value="{{ q }}">
   {% if active_category %}<input type="hidden" name="category" value="{{ active_category }}">{% endif %}
+  {% if active_cuisine %}<input type="hidden" name="cuisine" value="{{ active_cuisine }}">{% endif %}
+  {% for chip in dietary_chips %}
+    {% if chip.active %}<input type="hidden" name="dietary" value="{{ chip.tag }}">{% endif %}
+  {% endfor %}
   <button type="submit">Search</button>
 </form>
 
 <div class="chip-row">
   <a class="chip {{ 'chip-active' if not active_category }}"
-     href="{{ url_for('index', q=q) }}">All categories</a>
+     href="{{ url_for('index', q=q, cuisine=active_cuisine, dietary=dietary_chips|selectattr('active')|map(attribute='tag')|list) }}">All categories</a>
   {% for c in categories %}
     <a class="chip {{ 'chip-active' if active_category == c }}"
-       href="{{ url_for('index', q=q, category=c) }}">{{ c }}</a>
+       href="{{ url_for('index', q=q, category=c, cuisine=active_cuisine, dietary=dietary_chips|selectattr('active')|map(attribute='tag')|list) }}">{{ c }}</a>
+  {% endfor %}
+</div>
+
+<div class="chip-row">
+  <a class="chip {{ 'chip-active' if not active_cuisine }}"
+     href="{{ url_for('index', q=q, category=active_category, dietary=dietary_chips|selectattr('active')|map(attribute='tag')|list) }}">All cuisines</a>
+  {% for c in cuisines %}
+    <a class="chip {{ 'chip-active' if active_cuisine == c }}"
+       href="{{ url_for('index', q=q, category=active_category, cuisine=c, dietary=dietary_chips|selectattr('active')|map(attribute='tag')|list) }}">{{ c }}</a>
+  {% endfor %}
+</div>
+
+<div class="chip-row">
+  {% for chip in dietary_chips %}
+    <a class="chip chip-dietary {{ 'chip-active' if chip.active }}" href="{{ chip.url }}">{{ chip.tag }}</a>
   {% endfor %}
 </div>
 
 {% if recipes|length == 0 %}
-  <p class="empty-state">No recipes match yet{% if q or active_category %} - try clearing a filter{% endif %}. Be the first to <a href="{{ url_for('submit_form') }}">add one</a>!</p>
+  <p class="empty-state">No recipes match yet{% if q or active_category or active_cuisine or dietary_chips|selectattr('active')|list %} - try clearing a filter{% endif %}. Be the first to <a href="{{ url_for('submit_form') }}">add one</a>!</p>
 {% else %}
   <div class="recipe-grid">
     {% for r in recipes %}
@@ -33,6 +52,7 @@
         {% endif %}
         <div class="recipe-card-body">
           <span class="badge">{{ r.category }}</span>
+          {% if r.cuisine %}<span class="badge badge-cuisine">{{ r.cuisine }}</span>{% endif %}
           <h3>{{ r.name }}</h3>
           <p class="muted">by {{ r.submitter_name }}</p>
           {% if r.review_count %}

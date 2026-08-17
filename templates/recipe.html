@@ -10,6 +10,10 @@
   {% endif %}
 
   <span class="badge">{{ recipe.category }}</span>
+  {% if recipe.cuisine %}<span class="badge badge-cuisine">{{ recipe.cuisine }}</span>{% endif %}
+  {% for tag in recipe.dietary_tags.split(',') if tag.strip() %}
+    <span class="badge">{{ tag }}</span>
+  {% endfor %}
   <h1>{{ recipe.name }}</h1>
   <p class="muted">Submitted by {{ recipe.submitter_name }} - added {{ (recipe.reviewed_at or recipe.submitted_at)|shortdate }}</p>
 

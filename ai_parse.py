@@ -6,24 +6,25 @@ import re
 
 import anthropic
 
-from db import CATEGORIES
+from db import CATEGORIES, CUISINES
 
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 BETTER_MODEL = "claude-sonnet-5"
 
-SYSTEM_PROMPT = """You are transcribing a handwritten or printed recipe card, photo, \
+SYSTEM_PROMPT = f"""You are transcribing a handwritten or printed recipe card, photo, \
 or PDF for a church ward recipe book. Read the image carefully and extract the recipe.
 
 Return ONLY valid JSON, no preamble, no markdown code fences, no commentary. Use \
 exactly this shape:
 
-{
+{{
   "name": "recipe name",
-  "category": "one of Main, Side, Dessert, Bread, Breakfast, Other - your best guess",
+  "category": "one of {", ".join(CATEGORIES)} - your best guess",
+  "cuisine": "one of {", ".join(CUISINES)} - your best guess, or empty string if you can't tell",
   "ingredients": ["ingredient line 1", "ingredient line 2"],
   "instructions": ["step 1", "step 2"],
   "story": "any personal note, memory, or story visible on the card, or empty string if none"
-}
+}}
 
 Rules:
 - If any word or section is illegible, write [unclear] in its place rather than guessing.
@@ -32,6 +33,8 @@ Rules:
 - If you cannot determine a field at all, use an empty string or empty array - never \
 omit a key.
 - Do not add ingredients, steps, or commentary that are not visibly on the source.
+- Do NOT guess at dietary/allergen suitability (vegan, gluten-free, dairy-free, etc.) - \
+that isn't part of this task and is left for a human to confirm.
 """
 
 
@@ -100,6 +103,10 @@ def parse_recipe(file_bytes: bytes, media_type: str, use_better_model: bool = Fa
     if category not in CATEGORIES:
         category = "Other"
 
+    cuisine = (data.get("cuisine") or "").strip()
+    if cuisine not in CUISINES:
+        cuisine = "Other" if cuisine else ""
+
     ingredients = data.get("ingredients") or []
     instructions = data.get("instructions") or []
     if isinstance(ingredients, str):
@@ -110,6 +117,7 @@ def parse_recipe(file_bytes: bytes, media_type: str, use_better_model: bool = Fa
     return {
         "name": (data.get("name") or "").strip(),
         "category": category,
+        "cuisine": cuisine,
         "ingredients": "\n".join(str(i).strip() for i in ingredients if str(i).strip()),
         "instructions": "\n".join(str(s).strip() for s in instructions if str(s).strip()),
         "story": (data.get("story") or "").strip(),

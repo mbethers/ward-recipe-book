@@ -41,6 +41,24 @@
         </select>
       </label>
 
+      <label>Cuisine
+        <select name="cuisine">
+          <option value="">Not sure / doesn't fit a category</option>
+          {% for c in cuisines %}
+            <option value="{{ c }}" {% if recipe.cuisine == c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label>Dietary</label>
+      <div class="checkbox-group">
+        {% for tag in dietary_options %}
+          <label class="checkbox-option">
+            <input type="checkbox" name="dietary" value="{{ tag }}" {% if tag in active_dietary %}checked{% endif %}> {{ tag }}
+          </label>
+        {% endfor %}
+      </div>
+
       <label>Ingredients <span class="hint">(one per line)</span>
         <textarea name="ingredients" rows="8">{{ recipe.ingredients }}</textarea>
       </label>

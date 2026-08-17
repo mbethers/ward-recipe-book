@@ -16,6 +16,17 @@ from flask import g
 
 CATEGORIES = ["Main", "Side", "Dessert", "Bread", "Breakfast", "Other"]
 
+CUISINES = [
+    "American", "Mexican", "Italian", "Indian", "Chinese", "Thai", "Japanese",
+    "Korean", "Vietnamese", "Filipino", "Chilean", "Brazilian", "Peruvian",
+    "Greek", "French", "German", "Middle Eastern", "Hawaiian/Pacific Islander",
+    "African", "Other",
+]
+
+# Not mutually exclusive - stored as a comma-separated list on the recipe
+# (e.g. "Vegan,Gluten-free"), unlike category/cuisine which are single-select.
+DIETARY_TAGS = ["Vegan", "Vegetarian", "Gluten-free", "Dairy-free"]
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS recipes (
     id SERIAL PRIMARY KEY,
@@ -64,6 +75,13 @@ CREATE TABLE IF NOT EXISTS settings (
 DROP_THEMES = """
 ALTER TABLE recipes DROP COLUMN IF EXISTS theme_tag;
 DROP TABLE IF EXISTS themes;
+"""
+
+# Adds cuisine (single-select, like category) and dietary_tags (comma-separated,
+# multi-select) to existing databases. Safe to run on every startup.
+ADD_CUISINE_AND_DIETARY = """
+ALTER TABLE recipes ADD COLUMN IF NOT EXISTS cuisine TEXT NOT NULL DEFAULT '';
+ALTER TABLE recipes ADD COLUMN IF NOT EXISTS dietary_tags TEXT NOT NULL DEFAULT '';
 """
 
 DEFAULT_INTRO_TEXT = (
@@ -125,6 +143,7 @@ def init_db():
         with conn.cursor() as cur:
             cur.execute(SCHEMA)
             cur.execute(DROP_THEMES)
+            cur.execute(ADD_CUISINE_AND_DIETARY)
             cur.execute(
                 """INSERT INTO settings (key, value) VALUES ('intro_text', %s)
                    ON CONFLICT (key) DO NOTHING""",

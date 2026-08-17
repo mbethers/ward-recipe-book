@@ -82,6 +82,8 @@ def index():
     conn = db.get_db()
     q = request.args.get("q", "").strip()
     category = request.args.get("category", "").strip()
+    cuisine = request.args.get("cuisine", "").strip()
+    active_dietary = [t for t in request.args.getlist("dietary") if t in db.DIETARY_TAGS]
 
     sql = """SELECT r.*,
                     COALESCE(AVG(rv.rating), 0)::float AS avg_rating,
@@ -100,15 +102,38 @@ def index():
     if category:
         sql += " AND r.category = %s"
         params.append(category)
+    if cuisine:
+        sql += " AND r.cuisine = %s"
+        params.append(cuisine)
+    for tag in active_dietary:
+        # Each selected tag must be present - "Vegan" + "Gluten-free" means both.
+        sql += " AND r.dietary_tags ILIKE %s"
+        params.append(f"%{tag}%")
     sql += " GROUP BY r.id ORDER BY LOWER(r.name) ASC"
 
     recipes = conn.execute(sql, params).fetchall()
+
+    # Precompute each dietary chip's toggle URL (add/remove itself from the
+    # active set while keeping q/category/cuisine and the other active tags).
+    dietary_chips = []
+    for tag in db.DIETARY_TAGS:
+        is_active = tag in active_dietary
+        next_tags = [t for t in active_dietary if t != tag] if is_active else active_dietary + [tag]
+        dietary_chips.append({
+            "tag": tag,
+            "active": is_active,
+            "url": url_for("index", q=q, category=category, cuisine=cuisine, dietary=next_tags),
+        })
+
     return render_template(
         "index.html",
         recipes=recipes,
         categories=db.CATEGORIES,
+        cuisines=db.CUISINES,
+        dietary_chips=dietary_chips,
         q=q,
         active_category=category,
+        active_cuisine=cuisine,
         intro_text=db.get_setting("intro_text", db.DEFAULT_INTRO_TEXT),
     )
 
@@ -220,7 +245,9 @@ def submit_dish_photo(recipe_id):
 
 @app.route("/submit", methods=["GET"])
 def submit_form():
-    return render_template("submit.html", categories=db.CATEGORIES)
+    return render_template(
+        "submit.html", categories=db.CATEGORIES, cuisines=db.CUISINES, dietary_options=db.DIETARY_TAGS
+    )
 
 
 @app.route("/submit/text", methods=["POST"])
@@ -236,6 +263,12 @@ def submit_text():
     if category not in db.CATEGORIES:
         category = "Other"
 
+    cuisine = form.get("cuisine") or ""
+    if cuisine not in db.CUISINES:
+        cuisine = ""
+
+    dietary_tags = ",".join(t for t in form.getlist("dietary") if t in db.DIETARY_TAGS)
+
     photo_url = None
     photo = request.files.get("photo")
     if photo and photo.filename:
@@ -244,14 +277,16 @@ def submit_text():
     conn = db.get_db()
     new_id = conn.execute(
         """INSERT INTO recipes
-           (name, submitter_name, category, ingredients, instructions,
-            story, photo_path, status, submitted_at)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', %s)
+           (name, submitter_name, category, cuisine, dietary_tags, ingredients,
+            instructions, story, photo_path, status, submitted_at)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s)
            RETURNING id""",
         (
             name,
             submitter_name,
             category,
+            cuisine,
+            dietary_tags,
             (form.get("ingredients") or "").strip(),
             (form.get("instructions") or "").strip(),
             (form.get("story") or "").strip(),
@@ -307,6 +342,7 @@ def submit_photo():
     parsed = {
         "name": "",
         "category": "Other",
+        "cuisine": "",
         "ingredients": "",
         "instructions": "",
         "story": "",
@@ -323,14 +359,15 @@ def submit_photo():
     display_name = parsed["name"] or "(untitled - needs review)"
     new_id = conn.execute(
         """INSERT INTO recipes
-           (name, submitter_name, category, ingredients, instructions,
+           (name, submitter_name, category, cuisine, ingredients, instructions,
             story, source_image_path, status, submitted_at, parse_model)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)
            RETURNING id""",
         (
             display_name,
             submitter_name,
             parsed["category"],
+            parsed.get("cuisine", ""),
             parsed["ingredients"],
             parsed["instructions"],
             parsed["story"],
@@ -428,7 +465,15 @@ def admin_recipe_edit(recipe_id):
     recipe = conn.execute("SELECT * FROM recipes WHERE id = %s", (recipe_id,)).fetchone()
     if not recipe:
         abort(404)
-    return render_template("admin_edit.html", recipe=recipe, categories=db.CATEGORIES)
+    active_dietary = set(recipe["dietary_tags"].split(",")) if recipe["dietary_tags"] else set()
+    return render_template(
+        "admin_edit.html",
+        recipe=recipe,
+        categories=db.CATEGORIES,
+        cuisines=db.CUISINES,
+        dietary_options=db.DIETARY_TAGS,
+        active_dietary=active_dietary,
+    )
 
 
 def _save_recipe_fields(conn, recipe_id, form):
@@ -437,13 +482,21 @@ def _save_recipe_fields(conn, recipe_id, form):
     if category not in db.CATEGORIES:
         category = "Other"
 
+    cuisine = form.get("cuisine") or ""
+    if cuisine not in db.CUISINES:
+        cuisine = ""
+
+    dietary_tags = ",".join(t for t in form.getlist("dietary") if t in db.DIETARY_TAGS)
+
     conn.execute(
-        """UPDATE recipes SET name=%s, submitter_name=%s, category=%s,
-           ingredients=%s, instructions=%s, story=%s WHERE id=%s""",
+        """UPDATE recipes SET name=%s, submitter_name=%s, category=%s, cuisine=%s,
+           dietary_tags=%s, ingredients=%s, instructions=%s, story=%s WHERE id=%s""",
         (
             (form.get("name") or "").strip(),
             (form.get("submitter_name") or "").strip(),
             category,
+            cuisine,
+            dietary_tags,
             (form.get("ingredients") or "").strip(),
             (form.get("instructions") or "").strip(),
             (form.get("story") or "").strip(),
