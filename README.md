@@ -1,4 +1,4 @@
-# University Ward Recipe Book
+# University Ward Cookbook
 
 A lightweight, mobile-first recipe book for the ward's linger-longer potlucks.
 No login required to browse or submit. Submissions go into an admin review

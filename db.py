@@ -1,4 +1,4 @@
-"""Postgres (Supabase) access layer for the Ward Recipe Book.
+"""Postgres (Supabase) access layer for the Ward Cookbook.
 
 Render's free web services have no persistent disk - anything written to the
 local filesystem is wiped on every redeploy/restart. So instead of SQLite, this

@@ -142,7 +142,12 @@ h2 { font-size: 1.1rem; margin: 20px 0 8px; }
 .recipe-card:hover { text-decoration: none; border-color: var(--terracotta); }
 .recipe-card-photo { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; background: var(--border); }
 .recipe-card-photo-placeholder {
-  display: flex; align-items: center; justify-content: center; font-size: 2rem;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--danger);
+  background: var(--border);
+  border: 2px dashed var(--danger);
+  box-sizing: border-box;
 }
 .recipe-card-body { padding: 10px 12px; }
 .recipe-card-body h3 { margin: 4px 0; font-size: 1rem; }

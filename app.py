@@ -1,4 +1,4 @@
-"""University Ward Recipe Book - Flask app.
+"""University Ward Cookbook - Flask app.
 
 Public: browse/search published recipes, submit a recipe (typed or photo/PDF upload).
 Admin (/admin, password-gated): review pending submissions, edit, approve/reject.
@@ -74,7 +74,10 @@ def index():
 
     sql = """SELECT r.*,
                     COALESCE(AVG(rv.rating), 0)::float AS avg_rating,
-                    COUNT(rv.id) AS review_count
+                    COUNT(rv.id) AS review_count,
+                    (SELECT dp.photo_path FROM dish_photos dp
+                     WHERE dp.recipe_id = r.id AND dp.status = 'published'
+                     ORDER BY dp.submitted_at ASC LIMIT 1) AS gallery_photo
              FROM recipes r
              LEFT JOIN reviews rv ON rv.recipe_id = r.id
              WHERE r.status = 'published'"""
