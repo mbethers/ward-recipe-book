@@ -8,6 +8,12 @@
   --sage: #7f9473;
   --border: #e8ddcb;
   --danger: #b5443a;
+  /* Accent pair pulled from the app icon (UNC/Duke house) - used sparingly as
+     touches (category badges, active filters, header accent), not a repaint:
+     warm tones stay the base since blue reads as an appetite suppressant in
+     food-adjacent design. */
+  --carolina-blue: #4b9cd3;
+  --duke-navy: #012169;
   --radius: 14px;
   --max-width: 720px;
 }
@@ -36,18 +42,23 @@ a:hover { text-decoration: underline; }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 16px;
+  padding: 14px 16px 13px;
   background: var(--paper);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 3px solid;
+  border-image: linear-gradient(to right, var(--carolina-blue) 50%, var(--duke-navy) 50%) 1;
   position: sticky;
   top: 0;
   z-index: 10;
 }
 .site-header .brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-weight: 700;
   font-size: 1.05rem;
   color: var(--ink);
 }
+.brand-logo { width: 28px; height: 28px; border-radius: 7px; display: block; }
 .site-header .add-link {
   background: var(--terracotta);
   color: #fff;
@@ -121,7 +132,7 @@ h2 { font-size: 1.1rem; margin: 20px 0 8px; }
   white-space: nowrap;
 }
 .chip:hover { text-decoration: none; border-color: var(--terracotta); }
-.chip-active { background: var(--ink); color: #fff; border-color: var(--ink); }
+.chip-active { background: var(--duke-navy); color: #fff; border-color: var(--duke-navy); }
 
 /* Recipe grid */
 .recipe-grid {
@@ -154,7 +165,7 @@ h2 { font-size: 1.1rem; margin: 20px 0 8px; }
 
 .badge {
   display: inline-block;
-  background: var(--sage);
+  background: var(--carolina-blue);
   color: #fff;
   font-size: 0.72rem;
   font-weight: 600;

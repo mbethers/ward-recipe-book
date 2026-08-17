@@ -5,11 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ ward_name }} Cookbook{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <link rel="icon" href="data:,">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32.png') }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
+  <meta name="theme-color" content="#c1613f">
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="{{ url_for('index') }}">🍲 {{ ward_name }} Cookbook</a>
+    <a class="brand" href="{{ url_for('index') }}">
+      <img class="brand-logo" src="{{ url_for('static', filename='brand-logo.png') }}" alt="">
+      {{ ward_name }} Cookbook
+    </a>
     <a class="add-link" href="{{ url_for('submit_form') }}">+ Add a recipe</a>
   </header>
 
@@ -28,7 +35,7 @@
   </main>
 
   <footer class="site-footer">
-    <span>Made with ❤️ for the {{ ward_name }}</span>
+    <span>Bishop Bethers and his buddy Claude Code are to blame for this app</span>
   </footer>
 </body>
 </html>
