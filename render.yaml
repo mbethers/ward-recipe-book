@@ -22,3 +22,9 @@ services:
         value: recipe-photos
       - key: DATABASE_URL
         sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+      - key: ADMIN_NOTIFY_EMAIL
+        sync: false

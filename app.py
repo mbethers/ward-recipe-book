@@ -19,6 +19,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 import db
 from ai_parse import ParseError, parse_recipe
 import image_utils
+import email_utils
 import storage
 
 app = Flask(__name__)
@@ -45,6 +46,15 @@ def admin_required(view):
             return redirect(url_for("admin_login", next=request.path))
         return view(*args, **kwargs)
     return wrapped
+
+
+def _notify_admin(subject: str, body: str) -> None:
+    """Best-effort email to the admin - never lets a notification failure
+    affect the submission that triggered it."""
+    try:
+        email_utils.send_admin_notification(subject, body)
+    except RuntimeError as exc:
+        app.logger.warning("Admin notification email not sent: %s", exc)
 
 
 @app.context_processor
@@ -198,6 +208,11 @@ def submit_dish_photo(recipe_id):
         (recipe_id, uploader_name, photo_url, db.now_iso()),
     )
     conn.commit()
+    _notify_admin(
+        "New dish photo pending review",
+        f"{uploader_name} uploaded a photo for review.\n\n"
+        f"Review it: {url_for('admin_photos', _external=True)}",
+    )
     flash("Thanks! Your photo will show up here once an admin approves it.")
     return redirect(anchor)
 
@@ -226,11 +241,12 @@ def submit_text():
         photo_url = _store_dish_photo(photo)
 
     conn = db.get_db()
-    conn.execute(
+    new_id = conn.execute(
         """INSERT INTO recipes
            (name, submitter_name, category, ingredients, instructions,
             story, photo_path, status, submitted_at)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', %s)""",
+           VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', %s)
+           RETURNING id""",
         (
             name,
             submitter_name,
@@ -241,8 +257,13 @@ def submit_text():
             photo_url,
             db.now_iso(),
         ),
-    )
+    ).fetchone()["id"]
     conn.commit()
+    _notify_admin(
+        f'New recipe pending review: "{name}"',
+        f"{submitter_name} submitted \"{name}\" for review.\n\n"
+        f"Review it: {url_for('admin_recipe_edit', recipe_id=new_id, _external=True)}",
+    )
     return redirect(url_for("submitted"))
 
 
@@ -298,13 +319,15 @@ def submit_photo():
         app.logger.error("Claude parse failed: %s", exc)
 
     conn = db.get_db()
-    conn.execute(
+    display_name = parsed["name"] or "(untitled - needs review)"
+    new_id = conn.execute(
         """INSERT INTO recipes
            (name, submitter_name, category, ingredients, instructions,
             story, source_image_path, status, submitted_at, parse_model)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)""",
+           VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)
+           RETURNING id""",
         (
-            parsed["name"] or "(untitled - needs review)",
+            display_name,
             submitter_name,
             parsed["category"],
             parsed["ingredients"],
@@ -314,8 +337,13 @@ def submit_photo():
             db.now_iso(),
             parsed.get("parse_model"),
         ),
-    )
+    ).fetchone()["id"]
     conn.commit()
+    _notify_admin(
+        f'New recipe pending review: "{display_name}"',
+        f"{submitter_name} submitted \"{display_name}\" (from a photo/PDF upload) for review.\n\n"
+        f"Review it: {url_for('admin_recipe_edit', recipe_id=new_id, _external=True)}",
+    )
 
     if parse_error:
         flash("Thanks! We saved your upload, but the automatic reading had trouble - an admin will fill in the details by hand.")
