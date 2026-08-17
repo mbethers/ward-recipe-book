@@ -1,0 +1,12 @@
+{
+  "name": "Cookbook Admin",
+  "short_name": "Admin",
+  "start_url": "/admin/login",
+  "display": "standalone",
+  "background_color": "#fbf6ee",
+  "theme_color": "#c1613f",
+  "icons": [
+    { "src": "/static/admin-icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/static/admin-icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

@@ -2,11 +2,17 @@
 {#
   Admin pages extend this instead of base.html directly so that "Add to Home
   Screen" from any /admin page picks up a distinct icon (house-divided app
-  icon + Bishop Tools badge) and label - giving Mark/Jenae a separate iPhone
-  icon that opens straight to the admin console, without needing a second
-  URL or subdomain.
+  icon + Bishop Tools badge), label, and manifest (with its own start_url of
+  /admin/login) - giving Mark/Jenae a separate iPhone icon that opens straight
+  to the admin console, without needing a second URL or subdomain.
+
+  The manifest override matters as much as the icon: newer iOS Safari reads
+  the linked Web App Manifest's start_url for what a home-screen icon should
+  open to, not just the current page - without a distinct admin manifest, the
+  admin icon looked right but always launched into the public site's start_url.
 #}
-{% block home_screen_icon %}
+{% block home_screen_meta %}
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='admin-touch-icon.png') }}">
 <meta name="apple-mobile-web-app-title" content="Cookbook Admin">
+<link rel="manifest" href="{{ url_for('static', filename='admin-manifest.webmanifest') }}">
 {% endblock %}

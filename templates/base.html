@@ -7,11 +7,11 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32.png') }}">
   <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16.png') }}">
-  {% block home_screen_icon %}
+  {% block home_screen_meta %}
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
   <meta name="apple-mobile-web-app-title" content="{{ ward_name }} Cookbook">
-  {% endblock %}
   <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
+  {% endblock %}
   <meta name="theme-color" content="#c1613f">
 </head>
 <body>
