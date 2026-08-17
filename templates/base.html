@@ -20,10 +20,7 @@
       <img class="brand-logo" src="{{ url_for('static', filename='brand-logo.png') }}" alt="">
       {{ ward_name }} Cookbook
     </a>
-    <div class="header-actions">
-      <button type="button" class="share-link" id="share-app">Share</button>
-      <a class="add-link" href="{{ url_for('submit_form') }}">+ Add a recipe</a>
-    </div>
+    <a class="add-link" href="{{ url_for('submit_form') }}">+ Add a recipe</a>
   </header>
 
   {% with messages = get_flashed_messages() %}
@@ -43,6 +40,7 @@
   <footer class="site-footer">
     <img class="footer-icon" src="{{ url_for('static', filename='bishop-tools-icon.png') }}" alt="">
     <span>Bishop Bethers and his buddy Claude Code are to blame for this app</span>
+    <button type="button" class="share-link" id="share-app">Share</button>
   </footer>
 
   <script>
