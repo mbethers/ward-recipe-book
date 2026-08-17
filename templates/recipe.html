@@ -40,6 +40,44 @@
 
   <button class="print-btn no-print" onclick="window.print()">🖨️ Print / save this recipe</button>
 
+  <section id="photos" class="reviews-section no-print">
+    <h2>Photos from ward members</h2>
+
+    {% if dish_photos %}
+      <div class="photo-gallery">
+        {% for p in dish_photos %}
+          <div class="photo-gallery-item">
+            <img src="{{ p.photo_path }}" alt="{{ recipe.name }}, made by {{ p.uploader_name }}">
+            <p class="photo-gallery-caption">
+              by {{ p.uploader_name }}
+              {% if session.is_admin %}
+                <form method="post" action="{{ url_for('admin_photo_delete', photo_id=p.id) }}"
+                      onsubmit="return confirm('Remove this photo?');" class="review-admin-delete">
+                  <button type="submit" class="link-btn">🗑️</button>
+                </form>
+              {% endif %}
+            </p>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="muted">No photos yet - be the first to share how yours turned out!</p>
+    {% endif %}
+
+    <h3>Made this? Share a photo</h3>
+    <form method="post" action="{{ url_for('submit_dish_photo', recipe_id=recipe.id) }}"
+          enctype="multipart/form-data" class="review-form">
+      <label>Your name
+        <input type="text" name="uploader_name" required>
+      </label>
+      <label>Photo of your dish
+        <input type="file" name="photo" accept="image/*" required>
+      </label>
+      <button type="submit" class="secondary-btn">Upload photo</button>
+      <p class="hint">An admin reviews every photo before it appears here.</p>
+    </form>
+  </section>
+
   <section id="reviews" class="reviews-section no-print">
     <h2>Ratings &amp; reviews</h2>
 

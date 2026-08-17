@@ -111,7 +111,14 @@ def recipe_detail(recipe_id):
         "SELECT * FROM reviews WHERE recipe_id = %s ORDER BY created_at DESC", (recipe_id,)
     ).fetchall()
     avg_rating = sum(r["rating"] for r in reviews) / len(reviews) if reviews else 0
-    return render_template("recipe.html", recipe=recipe, reviews=reviews, avg_rating=avg_rating)
+    dish_photos = conn.execute(
+        """SELECT * FROM dish_photos WHERE recipe_id = %s AND status = 'published'
+           ORDER BY submitted_at ASC""",
+        (recipe_id,),
+    ).fetchall()
+    return render_template(
+        "recipe.html", recipe=recipe, reviews=reviews, avg_rating=avg_rating, dish_photos=dish_photos
+    )
 
 
 @app.route("/recipe/<int:recipe_id>/review", methods=["POST"])
@@ -141,6 +148,55 @@ def submit_review(recipe_id):
     conn.commit()
     flash("Thanks for your review!")
     return redirect(url_for("recipe_detail", recipe_id=recipe_id) + "#reviews")
+
+
+@app.route("/recipe/<int:recipe_id>/photo", methods=["POST"])
+def submit_dish_photo(recipe_id):
+    """A photo of the finished dish, independent of any review. Goes into the
+    same pending -> admin-approved pipeline as recipes - nothing a visitor
+    uploads appears publicly without an admin approving it first."""
+    conn = db.get_db()
+    recipe = conn.execute(
+        "SELECT id FROM recipes WHERE id = %s AND status = 'published'", (recipe_id,)
+    ).fetchone()
+    if not recipe:
+        abort(404)
+
+    uploader_name = (request.form.get("uploader_name") or "").strip()
+    upload = request.files.get("photo")
+    anchor = url_for("recipe_detail", recipe_id=recipe_id) + "#photos"
+
+    if not uploader_name or not upload or not upload.filename:
+        flash("Please enter your name and choose a photo.")
+        return redirect(anchor)
+    if not image_utils.is_image(upload.filename):
+        flash("Please upload a photo file (jpg, png, etc).")
+        return redirect(anchor)
+
+    try:
+        jpeg_bytes = image_utils.normalize_image(upload.read())
+    except image_utils.UnsupportedImageError as exc:
+        flash(str(exc))
+        return redirect(anchor)
+
+    if not storage.storage_configured():
+        flash("Photo storage isn't set up yet - try again later.")
+        return redirect(anchor)
+    try:
+        photo_url = storage.upload_bytes(jpeg_bytes, "photo.jpg", "image/jpeg", "gallery")
+    except RuntimeError as exc:
+        app.logger.error("Supabase upload failed: %s", exc)
+        flash("That photo couldn't be uploaded - please try again.")
+        return redirect(anchor)
+
+    conn.execute(
+        """INSERT INTO dish_photos (recipe_id, uploader_name, photo_path, status, submitted_at)
+           VALUES (%s, %s, %s, 'pending', %s)""",
+        (recipe_id, uploader_name, photo_url, db.now_iso()),
+    )
+    conn.commit()
+    flash("Thanks! Your photo will show up here once an admin approves it.")
+    return redirect(anchor)
 
 
 @app.route("/submit", methods=["GET"])
@@ -452,6 +508,64 @@ def admin_review_delete(review_id):
     conn.commit()
     flash("Review deleted.")
     return redirect(url_for("recipe_detail", recipe_id=review["recipe_id"]) + "#reviews")
+
+
+@app.route("/admin/photos")
+@admin_required
+def admin_photos():
+    conn = db.get_db()
+    pending = conn.execute(
+        """SELECT dp.*, r.name AS recipe_name FROM dish_photos dp
+           JOIN recipes r ON r.id = dp.recipe_id
+           WHERE dp.status = 'pending' ORDER BY dp.submitted_at ASC"""
+    ).fetchall()
+    return render_template("admin_photos.html", photos=pending)
+
+
+@app.route("/admin/photo/<int:photo_id>/approve", methods=["POST"])
+@admin_required
+def admin_photo_approve(photo_id):
+    conn = db.get_db()
+    photo = conn.execute("SELECT id FROM dish_photos WHERE id = %s", (photo_id,)).fetchone()
+    if not photo:
+        abort(404)
+    conn.execute(
+        "UPDATE dish_photos SET status='published', reviewed_at=%s WHERE id=%s",
+        (db.now_iso(), photo_id),
+    )
+    conn.commit()
+    flash("Photo published.")
+    return redirect(url_for("admin_photos"))
+
+
+@app.route("/admin/photo/<int:photo_id>/reject", methods=["POST"])
+@admin_required
+def admin_photo_reject(photo_id):
+    conn = db.get_db()
+    photo = conn.execute("SELECT id FROM dish_photos WHERE id = %s", (photo_id,)).fetchone()
+    if not photo:
+        abort(404)
+    conn.execute(
+        "UPDATE dish_photos SET status='rejected', reviewed_at=%s WHERE id=%s",
+        (db.now_iso(), photo_id),
+    )
+    conn.commit()
+    flash("Photo rejected.")
+    return redirect(url_for("admin_photos"))
+
+
+@app.route("/admin/photo/<int:photo_id>/delete", methods=["POST"])
+@admin_required
+def admin_photo_delete(photo_id):
+    """Removes an already-published photo (post-hoc moderation)."""
+    conn = db.get_db()
+    photo = conn.execute("SELECT recipe_id FROM dish_photos WHERE id = %s", (photo_id,)).fetchone()
+    if not photo:
+        abort(404)
+    conn.execute("DELETE FROM dish_photos WHERE id = %s", (photo_id,))
+    conn.commit()
+    flash("Photo removed.")
+    return redirect(url_for("recipe_detail", recipe_id=photo["recipe_id"]) + "#photos")
 
 
 @app.route("/admin/settings", methods=["GET", "POST"])

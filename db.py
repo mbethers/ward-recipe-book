@@ -42,6 +42,16 @@ CREATE TABLE IF NOT EXISTS reviews (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS dish_photos (
+    id SERIAL PRIMARY KEY,
+    recipe_id INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+    uploader_name TEXT NOT NULL DEFAULT '',
+    photo_path TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    submitted_at TEXT NOT NULL,
+    reviewed_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL DEFAULT ''

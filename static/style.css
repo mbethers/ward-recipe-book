@@ -301,6 +301,34 @@ form textarea { resize: vertical; }
 
 .review-form { max-width: 480px; margin-top: 12px; }
 
+/* Dish photo gallery: horizontal swipe strip, no JS needed */
+.photo-gallery {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 8px;
+  margin: 4px 0 20px;
+}
+.photo-gallery-item { flex: 0 0 auto; scroll-snap-align: start; width: 200px; }
+.photo-gallery-item img {
+  width: 200px;
+  height: 200px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  display: block;
+}
+.photo-gallery-caption { font-size: 0.85rem; color: var(--muted); margin: 6px 0 0; }
+
+/* Admin photo moderation grid */
+.admin-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+.admin-photo-card { background: var(--paper); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.admin-photo-card img { width: 100%; height: 180px; object-fit: cover; display: block; }
+.admin-photo-card-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.admin-photo-card-actions { display: flex; gap: 8px; margin-top: 4px; }
+.admin-photo-card-actions form { display: inline; }
+
 /* Pure-CSS 5-star picker: radios are in reverse (5..1) DOM order so the
    :checked/:hover general-sibling selector can highlight every star up to
    and including the one under the pointer once the row is visually flipped

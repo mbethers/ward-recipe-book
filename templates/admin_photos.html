@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Pending photos - Admin{% endblock %}
+{% block content %}
+
+{% include "_admin_nav.html" %}
+
+<h1>Pending photos ({{ photos|length }})</h1>
+<p class="hint">Photos ward members uploaded of a dish they made. Nothing here is visible on
+  the public recipe page until you approve it.</p>
+
+{% if photos|length == 0 %}
+  <p class="empty-state">All caught up - no photos waiting for review.</p>
+{% else %}
+  <div class="admin-photo-grid">
+    {% for p in photos %}
+      <div class="admin-photo-card">
+        <a href="{{ url_for('recipe_detail', recipe_id=p.recipe_id) }}#photos" target="_blank">
+          <img src="{{ p.photo_path }}" alt="Photo from {{ p.uploader_name }}">
+        </a>
+        <div class="admin-photo-card-body">
+          <strong>{{ p.recipe_name }}</strong>
+          <span class="muted">by {{ p.uploader_name }}</span>
+          <div class="admin-photo-card-actions">
+            <form method="post" action="{{ url_for('admin_photo_approve', photo_id=p.id) }}">
+              <button type="submit" class="primary-btn small">✅ Approve</button>
+            </form>
+            <form method="post" action="{{ url_for('admin_photo_reject', photo_id=p.id) }}">
+              <button type="submit" class="danger-btn small">✋ Reject</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% endblock %}
