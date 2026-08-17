@@ -217,6 +217,22 @@ form textarea { resize: vertical; }
 .primary-btn:hover { background: var(--terracotta-dark); text-decoration: none; }
 .secondary-btn { background: var(--paper); color: var(--ink); border: 1px solid var(--border); }
 .danger-btn { background: #fbeae7; color: var(--danger); border: 1px solid #f2c9c2; }
+
+.is-loading { cursor: wait; opacity: 0.8; padding-left: 2.5em; position: relative; }
+.is-loading::before {
+  content: "";
+  position: absolute;
+  left: 1em;
+  top: 50%;
+  width: 1em;
+  height: 1em;
+  margin-top: -0.5em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: btn-spin 0.7s linear infinite;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
 .small { padding: 6px 12px; font-size: 0.8rem; }
 
 /* Submit page tabs */

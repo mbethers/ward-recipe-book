@@ -24,7 +24,7 @@
 
   <div class="admin-fields">
     <h2>Recipe details</h2>
-    <form method="post" action="{{ url_for('admin_recipe_update', recipe_id=recipe.id) }}">
+    <form method="post" action="{{ url_for('admin_recipe_update', recipe_id=recipe.id) }}" id="recipe-edit-form">
       <label>Recipe name
         <input type="text" name="name" value="{{ recipe.name }}" required>
       </label>
@@ -77,13 +77,13 @@
 
     <div class="admin-actions">
       {% if recipe.status == 'pending' %}
-        <form method="post" action="{{ url_for('admin_recipe_approve', recipe_id=recipe.id) }}">
-          <button type="submit" class="primary-btn">✅ Approve &amp; Publish</button>
-        </form>
-        <form method="post" action="{{ url_for('admin_recipe_reject', recipe_id=recipe.id) }}"
-              onsubmit="return confirm('Reject this submission? It will be hidden from the public book.');">
-          <button type="submit" class="danger-btn">✋ Reject</button>
-        </form>
+        <button type="submit" form="recipe-edit-form"
+                formaction="{{ url_for('admin_recipe_approve', recipe_id=recipe.id) }}"
+                class="primary-btn">✅ Approve &amp; Publish</button>
+        <button type="submit" form="recipe-edit-form"
+                formaction="{{ url_for('admin_recipe_reject', recipe_id=recipe.id) }}"
+                class="danger-btn"
+                onclick="return confirm('Reject this submission? It will be hidden from the public book.');">✋ Reject</button>
       {% else %}
         <span class="badge">Status: {{ recipe.status }}</span>
       {% endif %}

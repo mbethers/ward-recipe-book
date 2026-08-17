@@ -338,17 +338,14 @@ def admin_recipe_edit(recipe_id):
     return render_template("admin_edit.html", recipe=recipe, categories=db.CATEGORIES, themes=themes)
 
 
-@app.route("/admin/recipe/<int:recipe_id>/update", methods=["POST"])
-@admin_required
-def admin_recipe_update(recipe_id):
-    form = request.form
+def _save_recipe_fields(conn, recipe_id, form):
+    """Applies the edit-form fields to a recipe. Caller commits."""
     theme_tag = (form.get("new_theme") or "").strip() or (form.get("theme_tag") or "").strip()
     ensure_theme(theme_tag)
     category = form.get("category") or "Other"
     if category not in db.CATEGORIES:
         category = "Other"
 
-    conn = db.get_db()
     conn.execute(
         """UPDATE recipes SET name=%s, submitter_name=%s, category=%s, theme_tag=%s,
            ingredients=%s, instructions=%s, story=%s WHERE id=%s""",
@@ -363,6 +360,13 @@ def admin_recipe_update(recipe_id):
             recipe_id,
         ),
     )
+
+
+@app.route("/admin/recipe/<int:recipe_id>/update", methods=["POST"])
+@admin_required
+def admin_recipe_update(recipe_id):
+    conn = db.get_db()
+    _save_recipe_fields(conn, recipe_id, request.form)
     conn.commit()
     flash("Saved.")
     return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
@@ -372,6 +376,7 @@ def admin_recipe_update(recipe_id):
 @admin_required
 def admin_recipe_approve(recipe_id):
     conn = db.get_db()
+    _save_recipe_fields(conn, recipe_id, request.form)
     conn.execute(
         "UPDATE recipes SET status='published', reviewed_at=%s WHERE id=%s",
         (db.now_iso(), recipe_id),
@@ -385,6 +390,7 @@ def admin_recipe_approve(recipe_id):
 @admin_required
 def admin_recipe_reject(recipe_id):
     conn = db.get_db()
+    _save_recipe_fields(conn, recipe_id, request.form)
     conn.execute(
         "UPDATE recipes SET status='rejected', reviewed_at=%s WHERE id=%s",
         (db.now_iso(), recipe_id),
