@@ -58,7 +58,7 @@ a:hover { text-decoration: underline; }
   font-size: 1.05rem;
   color: var(--ink);
 }
-.brand-logo { width: 28px; height: 28px; border-radius: 7px; display: block; }
+.brand-logo { width: 56px; height: 56px; border-radius: 12px; display: block; }
 .site-header .add-link {
   background: var(--terracotta);
   color: #fff;
