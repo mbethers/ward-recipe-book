@@ -73,7 +73,7 @@
       <label>Photo of your dish
         <input type="file" name="photo" accept="image/*" required>
       </label>
-      <button type="submit" class="secondary-btn">Upload photo</button>
+      <button type="submit" id="photo-upload-btn" class="secondary-btn">Upload photo</button>
       <p class="hint">An admin reviews every photo before it appears here.</p>
     </form>
   </section>
@@ -121,4 +121,5 @@
   </section>
 </article>
 
+<script src="{{ url_for('static', filename='app.js') }}"></script>
 {% endblock %}

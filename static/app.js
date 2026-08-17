@@ -26,8 +26,9 @@ document.addEventListener("submit", (event) => {
   btn.dataset.loading = "true";
   btn.disabled = true;
   btn.classList.add("is-loading");
-  btn.textContent =
-    btn.id === "photo-submit-btn"
-      ? "Reading your photo… (can take up to a minute)"
-      : "Please wait…";
+  const messages = {
+    "photo-submit-btn": "Reading your photo… (can take up to a minute)",
+    "photo-upload-btn": "Uploading your photo…",
+  };
+  btn.textContent = messages[btn.id] || "Please wait…";
 });
