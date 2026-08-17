@@ -43,7 +43,10 @@ def _client() -> anthropic.Anthropic:
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise ParseError("ANTHROPIC_API_KEY isn't set.")
-    return anthropic.Anthropic(api_key=api_key)
+    # Bounded well under the gunicorn worker timeout (render.yaml: --timeout 120)
+    # so a slow/retried call fails cleanly with a ParseError instead of the
+    # whole request getting killed by the server before Flask can respond.
+    return anthropic.Anthropic(api_key=api_key, timeout=45.0, max_retries=1)
 
 
 def _extract_json(text: str) -> dict:
@@ -85,6 +88,8 @@ def parse_recipe(file_bytes: bytes, media_type: str, use_better_model: bool = Fa
                 ],
             }],
         )
+    except anthropic.APITimeoutError as exc:
+        raise ParseError("Claude took too long to respond (timed out).") from exc
     except anthropic.APIError as exc:
         raise ParseError(f"Claude API error: {exc}") from exc
 
