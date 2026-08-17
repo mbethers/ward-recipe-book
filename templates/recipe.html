@@ -11,7 +11,7 @@
 
   <span class="badge">{{ recipe.category }}</span>
   <h1>{{ recipe.name }}</h1>
-  <p class="muted">Submitted by {{ recipe.submitter_name }} &middot; {{ recipe.theme_tag }}</p>
+  <p class="muted">Submitted by {{ recipe.submitter_name }} - added {{ (recipe.reviewed_at or recipe.submitted_at)|shortdate }}</p>
 
   {% if reviews %}
     <p class="rating-summary">

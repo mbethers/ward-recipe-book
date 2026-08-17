@@ -6,6 +6,7 @@ manage theme tags.
 """
 import functools
 import os
+from datetime import datetime
 
 try:
     from dotenv import load_dotenv
@@ -69,6 +70,18 @@ def admin_required(view):
 @app.context_processor
 def inject_globals():
     return {"ward_name": WARD_NAME}
+
+
+@app.template_filter("shortdate")
+def shortdate(iso_string):
+    """'2026-08-16T22:31:00+00:00' -> '8/16/26' (no leading zeros, 2-digit year)."""
+    if not iso_string:
+        return ""
+    try:
+        dt = datetime.fromisoformat(iso_string)
+    except ValueError:
+        return ""
+    return f"{dt.month}/{dt.day}/{dt.strftime('%y')}"
 
 
 # ------------------------------------------------------------- public UI --
