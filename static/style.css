@@ -165,7 +165,7 @@ h2 { font-size: 1.1rem; margin: 20px 0 8px; }
 
 .badge {
   display: inline-block;
-  background: var(--carolina-blue);
+  background: var(--sage);
   color: #fff;
   font-size: 0.72rem;
   font-weight: 600;
