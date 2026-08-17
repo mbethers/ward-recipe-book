@@ -7,6 +7,7 @@
 <div class="tab-row">
   <button type="button" class="tab-btn tab-active" data-tab="type">✏️ Type it in</button>
   <button type="button" class="tab-btn" data-tab="photo">📷 Upload a photo or PDF</button>
+  <button type="button" class="tab-btn" data-tab="link">🔗 Paste a link</button>
 </div>
 
 <form id="form-type" class="tab-panel tab-panel-active" method="post" action="{{ url_for('submit_text') }}" enctype="multipart/form-data">
@@ -72,6 +73,21 @@
   </label>
 
   <button type="submit" id="photo-submit-btn" class="primary-btn">Submit for reading</button>
+</form>
+
+<form id="form-link" class="tab-panel" method="post" action="{{ url_for('submit_url') }}">
+  <p class="hint">Paste a link to a recipe on another website. We'll pull it in automatically -
+    an admin double-checks everything before it's published.</p>
+
+  <label>Your name
+    <input type="text" name="submitter_name" required>
+  </label>
+
+  <label>Recipe link
+    <input type="url" name="recipe_url" placeholder="https://..." required>
+  </label>
+
+  <button type="submit" id="link-submit-btn" class="primary-btn">Submit for reading</button>
 </form>
 
 <script src="{{ url_for('static', filename='app.js') }}"></script>

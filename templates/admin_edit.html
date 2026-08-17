@@ -7,10 +7,12 @@
 <a class="back-link" href="{{ url_for('admin_queue') if recipe.status == 'pending' else url_for('admin_published') }}">&larr; Back to list</a>
 
 <div class="admin-review">
-  {% if recipe.source_image_path %}
+  {% if recipe.source_image_path or recipe.source_url %}
     <div class="admin-source">
       <h2>Original source</h2>
-      {% if recipe.source_image_path.lower().endswith('.pdf') %}
+      {% if recipe.source_url %}
+        <p><a href="{{ recipe.source_url }}" target="_blank" rel="noopener noreferrer">{{ recipe.source_url }} ↗</a></p>
+      {% elif recipe.source_image_path.lower().endswith('.pdf') %}
         <iframe class="source-pdf" src="{{ recipe.source_image_path }}"></iframe>
       {% else %}
         <img class="source-photo" src="{{ recipe.source_image_path }}" alt="Original recipe card">

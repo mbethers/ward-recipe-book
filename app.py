@@ -22,6 +22,7 @@ from ai_parse import ParseError, parse_recipe
 import image_utils
 import email_utils
 import storage
+from web_recipe import FetchError, parse_recipe_from_url
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-not-secret-change-me")
@@ -388,6 +389,62 @@ def submit_photo():
     return redirect(url_for("submitted"))
 
 
+@app.route("/submit/url", methods=["POST"])
+def submit_url():
+    form = request.form
+    submitter_name = (form.get("submitter_name") or "").strip()
+    recipe_url = (form.get("recipe_url") or "").strip()
+    if not submitter_name or not recipe_url:
+        flash("Your name and a recipe link are both required.")
+        return redirect(url_for("submit_form"))
+
+    try:
+        parsed, final_url = parse_recipe_from_url(recipe_url)
+    except FetchError as exc:
+        flash(str(exc))
+        return redirect(url_for("submit_form"))
+    except ParseError as exc:
+        # We reached the page but couldn't make a recipe out of it - still
+        # worth saving so an admin can look at the link and fill it in by hand,
+        # same as a photo/PDF that failed to read.
+        app.logger.error("Web recipe parse failed for %s: %s", recipe_url, exc)
+        parsed = {"name": "", "category": "Other", "cuisine": "", "ingredients": "",
+                  "instructions": "", "story": "", "parse_model": None}
+        final_url = recipe_url
+
+    conn = db.get_db()
+    display_name = parsed["name"] or "(untitled - needs review)"
+    new_id = conn.execute(
+        """INSERT INTO recipes
+           (name, submitter_name, category, cuisine, ingredients, instructions,
+            story, source_url, status, submitted_at, parse_model)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)
+           RETURNING id""",
+        (
+            display_name,
+            submitter_name,
+            parsed["category"],
+            parsed.get("cuisine", ""),
+            parsed["ingredients"],
+            parsed["instructions"],
+            parsed["story"],
+            final_url,
+            db.now_iso(),
+            parsed.get("parse_model"),
+        ),
+    ).fetchone()["id"]
+    conn.commit()
+    _notify_admin(
+        f'New recipe pending review: "{display_name}"',
+        f"{submitter_name} submitted \"{display_name}\" (from a web link) for review.\n\n"
+        f"Review it: {url_for('admin_recipe_edit', recipe_id=new_id, _external=True)}",
+    )
+
+    if not parsed["name"]:
+        flash("Thanks! We saved your link, but the automatic reading had trouble - an admin will fill in the details by hand.")
+    return redirect(url_for("submitted"))
+
+
 @app.route("/submitted")
 def submitted():
     return render_template("submitted.html")
@@ -548,28 +605,31 @@ def admin_recipe_reject(recipe_id):
 def admin_recipe_reprocess(recipe_id):
     conn = db.get_db()
     recipe = conn.execute("SELECT * FROM recipes WHERE id = %s", (recipe_id,)).fetchone()
-    if not recipe or not recipe["source_image_path"]:
-        flash("No source image to reprocess.")
+    if not recipe or not (recipe["source_image_path"] or recipe["source_url"]):
+        flash("No source image or link to reprocess.")
         return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
 
-    import requests
-
-    resp = requests.get(recipe["source_image_path"], timeout=30)
-    resp.raise_for_status()
-    media_type = "application/pdf" if recipe["source_image_path"].lower().endswith(".pdf") else "image/jpeg"
-
     try:
-        parsed = parse_recipe(resp.content, media_type, use_better_model=True)
-    except ParseError as exc:
+        if recipe["source_image_path"]:
+            import requests
+
+            resp = requests.get(recipe["source_image_path"], timeout=30)
+            resp.raise_for_status()
+            media_type = "application/pdf" if recipe["source_image_path"].lower().endswith(".pdf") else "image/jpeg"
+            parsed = parse_recipe(resp.content, media_type, use_better_model=True)
+        else:
+            parsed, _final_url = parse_recipe_from_url(recipe["source_url"], use_better_model=True)
+    except (ParseError, FetchError) as exc:
         flash(f"Reprocessing failed: {exc}")
         return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
 
     conn.execute(
-        """UPDATE recipes SET name=%s, category=%s, ingredients=%s, instructions=%s,
-           story=%s, parse_model=%s WHERE id=%s""",
+        """UPDATE recipes SET name=%s, category=%s, cuisine=%s, ingredients=%s,
+           instructions=%s, story=%s, parse_model=%s WHERE id=%s""",
         (
             parsed["name"] or recipe["name"],
             parsed["category"],
+            parsed.get("cuisine") or recipe["cuisine"],
             parsed["ingredients"],
             parsed["instructions"],
             parsed["story"],

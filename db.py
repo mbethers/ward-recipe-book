@@ -84,6 +84,13 @@ ALTER TABLE recipes ADD COLUMN IF NOT EXISTS cuisine TEXT NOT NULL DEFAULT '';
 ALTER TABLE recipes ADD COLUMN IF NOT EXISTS dietary_tags TEXT NOT NULL DEFAULT '';
 """
 
+# Stores the original webpage URL for link-imported recipes (so admins can
+# click through to verify, same idea as source_image_path for photo/PDF
+# uploads). Safe to run on every startup.
+ADD_SOURCE_URL = """
+ALTER TABLE recipes ADD COLUMN IF NOT EXISTS source_url TEXT NOT NULL DEFAULT '';
+"""
+
 DEFAULT_INTRO_TEXT = (
     "Welcome to the University (Married Student) Ward's Cookbook. We invite you "
     "to add your own favorite recipes, then make & comment on the recipes of "
@@ -144,6 +151,7 @@ def init_db():
             cur.execute(SCHEMA)
             cur.execute(DROP_THEMES)
             cur.execute(ADD_CUISINE_AND_DIETARY)
+            cur.execute(ADD_SOURCE_URL)
             cur.execute(
                 """INSERT INTO settings (key, value) VALUES ('intro_text', %s)
                    ON CONFLICT (key) DO NOTHING""",

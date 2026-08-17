@@ -1,9 +1,10 @@
-// Tab switching on the submit page (type vs. photo/PDF upload)
+// Tab switching on the submit page (type it in / photo/PDF upload / paste a link)
 document.addEventListener("DOMContentLoaded", () => {
   const tabButtons = document.querySelectorAll(".tab-btn");
   const panels = {
     type: document.getElementById("form-type"),
     photo: document.getElementById("form-photo"),
+    link: document.getElementById("form-link"),
   };
 
   tabButtons.forEach((btn) => {
@@ -29,6 +30,7 @@ document.addEventListener("submit", (event) => {
   const messages = {
     "photo-submit-btn": "Reading your photo… (can take up to a minute)",
     "photo-upload-btn": "Uploading your photo…",
+    "link-submit-btn": "Reading that page… (can take up to a minute)",
   };
   btn.textContent = messages[btn.id] || "Please wait…";
 });
