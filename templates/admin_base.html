@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{#
+  Admin pages extend this instead of base.html directly so that "Add to Home
+  Screen" from any /admin page picks up a distinct icon (house-divided app
+  icon + Bishop Tools badge) and label - giving Mark/Jenae a separate iPhone
+  icon that opens straight to the admin console, without needing a second
+  URL or subdomain.
+#}
+{% block home_screen_icon %}
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='admin-touch-icon.png') }}">
+<meta name="apple-mobile-web-app-title" content="Cookbook Admin">
+{% endblock %}
