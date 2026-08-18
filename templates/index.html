@@ -5,39 +5,55 @@
   <div class="welcome-banner">{{ intro_text }}</div>
 {% endif %}
 
-<form class="search-bar" method="get" action="{{ url_for('index') }}">
-  <input type="search" name="q" placeholder="Search recipes, ingredients, or names..." value="{{ q }}">
-  {% if active_category %}<input type="hidden" name="category" value="{{ active_category }}">{% endif %}
-  {% if active_cuisine %}<input type="hidden" name="cuisine" value="{{ active_cuisine }}">{% endif %}
-  {% for chip in dietary_chips %}
-    {% if chip.active %}<input type="hidden" name="dietary" value="{{ chip.tag }}">{% endif %}
-  {% endfor %}
-  <button type="submit">Search</button>
+{% set active_dietary = dietary_chips|selectattr('active')|map(attribute='tag')|list %}
+{% set filters_on = active_category or active_cuisine or active_dietary %}
+
+<form class="filter-bar" method="get" action="{{ url_for('index') }}" id="filter-form">
+  <input class="filter-search" type="search" name="q"
+         placeholder="Search recipes, ingredients, or names..." value="{{ q }}">
+
+  <div class="filter-controls">
+    {# 'filter-on' is set here rather than by script, so a selected filter still
+       looks selected with JavaScript unavailable. #}
+    <select class="filter-select {{ 'filter-on' if active_category }}"
+            name="category" aria-label="Filter by category">
+      <option value="">All categories</option>
+      {% for c in categories %}
+        <option value="{{ c }}" {% if active_category == c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+
+    <select class="filter-select {{ 'filter-on' if active_cuisine }}"
+            name="cuisine" aria-label="Filter by cuisine">
+      <option value="">All cuisines</option>
+      {% for c in cuisines %}
+        <option value="{{ c }}" {% if active_cuisine == c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+
+    {# Dietary is multi-select, so it gets a disclosure of checkboxes rather than
+       a <select>. <details> handles open/close without any JavaScript. #}
+    <details class="filter-dropdown">
+      <summary class="filter-select {{ 'filter-on' if active_dietary }}">
+        Dietary{% if active_dietary %} ({{ active_dietary|length }}){% endif %}
+      </summary>
+      <div class="filter-menu">
+        {% for chip in dietary_chips %}
+          <label class="filter-menu-option">
+            <input type="checkbox" name="dietary" value="{{ chip.tag }}"
+                   {% if chip.active %}checked{% endif %}> {{ chip.tag }}
+          </label>
+        {% endfor %}
+        <button type="submit" class="filter-apply">Apply</button>
+      </div>
+    </details>
+
+    <button type="submit" class="filter-go">Search</button>
+    {% if filters_on or q %}
+      <a class="filter-clear" href="{{ url_for('index') }}">Clear</a>
+    {% endif %}
+  </div>
 </form>
-
-<div class="chip-row">
-  <a class="chip {{ 'chip-active' if not active_category }}"
-     href="{{ url_for('index', q=q, cuisine=active_cuisine, dietary=dietary_chips|selectattr('active')|map(attribute='tag')|list) }}">All categories</a>
-  {% for c in categories %}
-    <a class="chip {{ 'chip-active' if active_category == c }}"
-       href="{{ url_for('index', q=q, category=c, cuisine=active_cuisine, dietary=dietary_chips|selectattr('active')|map(attribute='tag')|list) }}">{{ c }}</a>
-  {% endfor %}
-</div>
-
-<div class="chip-row">
-  <a class="chip {{ 'chip-active' if not active_cuisine }}"
-     href="{{ url_for('index', q=q, category=active_category, dietary=dietary_chips|selectattr('active')|map(attribute='tag')|list) }}">All cuisines</a>
-  {% for c in cuisines %}
-    <a class="chip {{ 'chip-active' if active_cuisine == c }}"
-       href="{{ url_for('index', q=q, category=active_category, cuisine=c, dietary=dietary_chips|selectattr('active')|map(attribute='tag')|list) }}">{{ c }}</a>
-  {% endfor %}
-</div>
-
-<div class="chip-row">
-  {% for chip in dietary_chips %}
-    <a class="chip chip-dietary {{ 'chip-active' if chip.active }}" href="{{ chip.url }}">{{ chip.tag }}</a>
-  {% endfor %}
-</div>
 
 {% if recipes|length == 0 %}
   <p class="empty-state">No recipes match yet{% if q or active_category or active_cuisine or dietary_chips|selectattr('active')|list %} - try clearing a filter{% endif %}. Be the first to <a href="{{ url_for('submit_form') }}">add one</a>!</p>

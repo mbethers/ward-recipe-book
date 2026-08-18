@@ -17,6 +17,23 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  // Filter bar: picking a dropdown applies it straight away. Without JS the
+  // Search button still submits the same form, so nothing is lost.
+  const filterForm = document.getElementById("filter-form");
+  if (filterForm) {
+    filterForm.querySelectorAll("select.filter-select").forEach((select) => {
+      select.addEventListener("change", () => filterForm.submit());
+    });
+
+    // Click anywhere else to close the dietary checkbox menu.
+    const dropdown = filterForm.querySelector(".filter-dropdown");
+    if (dropdown) {
+      document.addEventListener("click", (event) => {
+        if (!dropdown.contains(event.target)) dropdown.open = false;
+      });
+    }
+  }
+
   // Multi-file preview for photo uploads
   const sourceFilesInput = document.querySelector('input[name="source_files"]');
   if (sourceFilesInput) {

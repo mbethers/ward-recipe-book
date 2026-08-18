@@ -114,46 +114,113 @@ h2 { font-size: 1.1rem; margin: 20px 0 8px; }
 .small { font-size: 0.8rem; }
 .hint { color: var(--muted); font-weight: 400; font-size: 0.85rem; }
 
-/* Search + filters */
-.search-bar { display: flex; gap: 8px; margin-bottom: 12px; }
-.search-bar input {
-  flex: 1;
+/* Search + filters: one wrapping row of controls instead of ~31 chips */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.filter-search {
+  flex: 1 1 100%;
+  min-width: 0;
   padding: 10px 14px;
   border-radius: 999px;
   border: 1px solid var(--border);
   font-size: 1rem;
   background: var(--paper);
+  color: var(--ink);
 }
-.search-bar button {
-  padding: 10px 16px;
+/* The controls sit on their own line and share it, wrapping only if they must. */
+.filter-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.filter-select {
+  flex: 0 0 auto;
+  width: auto;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+  max-width: 100%;
+}
+.filter-select:hover { border-color: var(--terracotta); }
+/* Only an actually-applied filter goes navy. The class is set server-side so
+   this holds without JavaScript. */
+.filter-select.filter-on {
+  background: var(--duke-navy);
+  color: #fff;
+  border-color: var(--duke-navy);
+}
+
+.filter-dropdown { position: relative; flex: 0 0 auto; }
+.filter-dropdown > summary {
+  list-style: none;
+  white-space: nowrap;
+  display: inline-block;
+}
+.filter-dropdown > summary::-webkit-details-marker { display: none; }
+.filter-dropdown > summary::after { content: " ▾"; }
+.filter-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 180px;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+.filter-menu-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.filter-apply {
+  margin-top: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: none;
+  background: var(--terracotta);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.filter-go {
+  padding: 9px 16px;
   border-radius: 999px;
   border: none;
   background: var(--ink);
   color: #fff;
   font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
 }
-
-.chip-row {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 8px;
-  margin-bottom: 8px;
-  -webkit-overflow-scrolling: touch;
-}
-.chip {
-  flex: 0 0 auto;
-  padding: 6px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--paper);
-  color: var(--ink);
+.filter-clear {
   font-size: 0.85rem;
+  color: var(--muted);
+  text-decoration: underline;
   white-space: nowrap;
 }
-.chip:hover { text-decoration: none; border-color: var(--terracotta); }
-.chip-active { background: var(--duke-navy); color: #fff; border-color: var(--duke-navy); }
-.chip-dietary.chip-active { background: var(--sage); color: #fff; border-color: var(--sage); }
 
 /* Recipe grid */
 .recipe-grid {
