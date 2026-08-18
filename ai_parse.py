@@ -270,6 +270,12 @@ def proofread_recipe(name: str, ingredients: str, instructions: str, story: str)
         raw_text = "".join(block.text for block in message.content if block.type == "text")
         data = _extract_json(raw_text)
         issues = data.get("issues") or []
+
+        # Ensure issues is always a list (sometimes Claude returns it as a string)
+        if isinstance(issues, str):
+            # If it's a string, split by newline or common delimiters
+            issues = [i.strip() for i in issues.split('\n') if i.strip()]
+
         return [str(i).strip() for i in issues if str(i).strip()][:5]
     except Exception as exc:
         logging.getLogger(__name__).warning("Proofreading skipped: %s", exc)
