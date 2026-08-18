@@ -886,16 +886,20 @@ def admin_recipe_accept_fix(recipe_id):
         flash("Invalid field specified.")
         return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
 
-    # Update recipe with the fixed field
-    if fixed_field == "name":
-        conn.execute("UPDATE recipes SET name=%s WHERE id=%s", (chosen_fix, recipe_id))
-    elif fixed_field == "ingredients":
-        conn.execute("UPDATE recipes SET ingredients=%s WHERE id=%s", (chosen_fix, recipe_id))
-    elif fixed_field == "instructions":
-        conn.execute("UPDATE recipes SET instructions=%s WHERE id=%s", (chosen_fix, recipe_id))
-    elif fixed_field == "story":
-        conn.execute("UPDATE recipes SET story=%s WHERE id=%s", (chosen_fix, recipe_id))
+    # Drop the issue we just handled so the list shrinks as you work through
+    # it - the other issues stay put, still each with their own decision.
+    remaining = [
+        note.strip()
+        for note in (recipe["proofreading_notes"] or "").split("\n")
+        if note.strip() and note.strip() != issue_text
+    ]
+    remaining_notes = "\n".join(remaining)
 
+    # Column name is from a fixed whitelist above, never user input.
+    conn.execute(
+        f"UPDATE recipes SET {fixed_field}=%s, proofreading_notes=%s WHERE id=%s",
+        (chosen_fix, remaining_notes, recipe_id),
+    )
     conn.commit()
 
     # Show confirmation with the issue that was fixed
