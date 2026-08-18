@@ -276,13 +276,15 @@ def proofread_recipe(name: str, ingredients: str, instructions: str, story: str)
         return []
 
 
-def apply_recipe_fix(name: str, ingredients: str, instructions: str, story: str, issue: str) -> dict:
-    """Apply a specific proofreading issue fix. Given a recipe and one specific issue,
-    have Claude fix just that issue and return the corrected field(s). Never raises on API errors.
-    Returns a dict with 'success', 'fixed_field', 'original', 'fixed' keys."""
+def propose_recipe_fix(name: str, ingredients: str, instructions: str, story: str, issue: str) -> dict:
+    """Propose a fix for a specific proofreading issue without applying it.
+    Returns options for the admin to review and choose from.
+    Returns a dict with 'success', 'fixed_field', 'options' keys.
+    Each option has 'original', 'fixed', 'explanation'.
+    """
     try:
         client = _client()
-        prompt = f"""You are fixing a specific issue in a recipe that was flagged during review.
+        prompt = f"""You are proposing a fix for a specific issue in a recipe that was flagged during review.
 
 Current recipe:
 - Name: {name}
@@ -292,21 +294,34 @@ Current recipe:
 
 Issue to fix: {issue}
 
-Fix ONLY this specific issue. Do not make other changes. Return ONLY valid JSON with this shape:
+Propose ONE or TWO ways to fix this issue (not more). Do NOT apply the fix - just suggest it.
+Return ONLY valid JSON with this shape:
+
 {{
   "fixed_field": "name" | "ingredients" | "instructions" | "story",
-  "original": "the exact original text or value",
-  "fixed": "the corrected text or value"
+  "original": "the exact original text that needs fixing",
+  "options": [
+    {{
+      "fixed": "proposed fix option 1",
+      "explanation": "why this is the right fix"
+    }},
+    {{
+      "fixed": "proposed fix option 2 (if applicable)",
+      "explanation": "alternative approach"
+    }}
+  ]
 }}
 
+If there's only one way to fix it, include only one option.
 If the issue is about measurement abbreviations (Tbsp, tsp, oz, lb) or fractions (1/4 → ¼),
 fix ALL occurrences in the relevant field (ingredients or instructions).
 
 IMPORTANT: All temperatures are in Fahrenheit. Never convert or change temperature values.
+Show the complete fixed text for the admin to review.
 """
         message = client.messages.create(
             model=DEFAULT_MODEL,
-            max_tokens=1000,
+            max_tokens=1500,
             messages=[{"role": "user", "content": prompt}],
         )
         raw_text = "".join(block.text for block in message.content if block.type == "text")
@@ -316,10 +331,46 @@ IMPORTANT: All temperatures are in Fahrenheit. Never convert or change temperatu
             "success": True,
             "fixed_field": data.get("fixed_field"),
             "original": data.get("original"),
-            "fixed": data.get("fixed"),
+            "options": data.get("options", []),
         }
     except Exception as exc:
-        logging.getLogger(__name__).warning("Apply fix failed: %s", exc)
+        logging.getLogger(__name__).warning("Propose fix failed: %s", exc)
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+
+
+def apply_recipe_fix_choice(name: str, ingredients: str, instructions: str, story: str, issue: str, chosen_fix: str) -> dict:
+    """Apply the admin's chosen fix from the proposed options.
+    The chosen_fix is the exact text they selected from the options.
+    Returns success/error."""
+    try:
+        # Validate which field is being fixed by looking for the original text
+        all_text = f"{name}|{ingredients}|{instructions}|{story}"
+
+        # Determine which field contains the change
+        if chosen_fix in name or (name and chosen_fix.replace("'", '"') in name):
+            fixed_field = "name"
+            updated_value = chosen_fix
+        elif ingredients and (chosen_fix in ingredients or len(ingredients) > 100):
+            # Multi-line field - do replacement
+            fixed_field = "ingredients"
+            updated_value = chosen_fix
+        elif instructions and (chosen_fix in instructions or len(instructions) > 100):
+            fixed_field = "instructions"
+            updated_value = chosen_fix
+        else:
+            fixed_field = "story"
+            updated_value = chosen_fix
+
+        return {
+            "success": True,
+            "fixed_field": fixed_field,
+            "fixed": updated_value,
+        }
+    except Exception as exc:
+        logging.getLogger(__name__).warning("Apply choice failed: %s", exc)
         return {
             "success": False,
             "error": str(exc),
