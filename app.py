@@ -19,7 +19,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 import psycopg
 
 import db
-from ai_parse import ParseError, parse_recipe, proofread_recipe
+from ai_parse import ParseError, parse_recipe, parse_recipe_multi, proofread_recipe
 import image_utils
 import email_utils
 import storage
@@ -357,38 +357,57 @@ def submit_text():
 def submit_photo():
     form = request.form
     submitter_name = (form.get("submitter_name") or "").strip()
-    upload = request.files.get("source_file")
+    uploads = request.files.getlist("source_files")
 
-    if not submitter_name or not upload or not upload.filename:
-        flash("Your name and a photo or PDF are both required.")
+    if not submitter_name or not uploads or not any(u.filename for u in uploads):
+        flash("Your name and at least one photo or PDF are required.")
         return redirect(url_for("submit_form"))
 
-    raw_bytes = upload.read()
-    filename = upload.filename
+    # Validate file count
+    uploads = [u for u in uploads if u.filename]
+    if len(uploads) > 3:
+        flash("Please upload at most 3 files.")
+        return redirect(url_for("submit_form"))
 
-    if image_utils.is_pdf(filename):
-        media_type = "application/pdf"
-        parse_bytes = raw_bytes
-        store_bytes, store_content_type, store_ext = raw_bytes, "application/pdf", ".pdf"
-    elif image_utils.is_image(filename):
-        media_type = "image/jpeg"
-        try:
-            parse_bytes = image_utils.normalize_image(raw_bytes)
-        except image_utils.UnsupportedImageError as exc:
-            flash(str(exc))
+    # Process all files
+    source_image_paths = []
+    parse_bytes_list = []  # For Claude - pairs of (bytes, media_type)
+
+    for upload in uploads:
+        raw_bytes = upload.read()
+        filename = upload.filename
+
+        if image_utils.is_pdf(filename):
+            media_type = "application/pdf"
+            parse_bytes = raw_bytes
+            store_bytes, store_content_type, store_ext = raw_bytes, "application/pdf", ".pdf"
+        elif image_utils.is_image(filename):
+            media_type = "image/jpeg"
+            try:
+                parse_bytes = image_utils.normalize_image(raw_bytes)
+            except image_utils.UnsupportedImageError as exc:
+                flash(f"Couldn't read {filename}: {exc}")
+                return redirect(url_for("submit_form"))
+            store_bytes, store_content_type, store_ext = parse_bytes, "image/jpeg", ".jpg"
+        else:
+            flash(f"{filename} is not a photo (jpg/png/heic) or PDF.")
             return redirect(url_for("submit_form"))
-        store_bytes, store_content_type, store_ext = parse_bytes, "image/jpeg", ".jpg"
-    else:
-        flash("Please upload a photo (jpg/png/heic) or a PDF.")
-        return redirect(url_for("submit_form"))
 
-    source_image_path = None
-    if storage.storage_configured():
-        try:
-            source_image_path = storage.upload_bytes(store_bytes, f"source{store_ext}", store_content_type, "sources")
-        except RuntimeError as exc:
-            app.logger.error("Supabase upload failed: %s", exc)
+        # Store the source file
+        source_image_path = None
+        if storage.storage_configured():
+            try:
+                source_image_path = storage.upload_bytes(
+                    store_bytes, f"source{store_ext}", store_content_type, "sources"
+                )
+                source_image_paths.append(source_image_path)
+            except RuntimeError as exc:
+                app.logger.error("Supabase upload failed for %s: %s", filename, exc)
 
+        # Collect for Claude parsing
+        parse_bytes_list.append((parse_bytes, media_type))
+
+    # Parse all files together with Claude
     parsed = {
         "name": "",
         "category": "Other",
@@ -401,16 +420,20 @@ def submit_photo():
         "parse_model": None,
     }
     try:
-        parsed = parse_recipe(parse_bytes, media_type)
+        parsed = parse_recipe_multi(parse_bytes_list)
     except ParseError as exc:
         app.logger.error("Claude parse failed: %s", exc)
         flash("We couldn't automatically read that - no worries, just fill in what you can below.")
+
+    # Store paths as newline-separated string
+    source_image_path_str = "\n".join(source_image_paths) if source_image_paths else ""
 
     return render_template(
         "submit_preview.html",
         submitter_name=submitter_name,
         source_url="",
-        source_image_path=source_image_path,
+        source_image_path=source_image_path_str,
+        source_image_paths=source_image_paths,
         parsed=parsed,
         categories=db.CATEGORIES,
         cuisines=db.CUISINES,
@@ -751,10 +774,24 @@ def admin_recipe_reprocess(recipe_id):
         if recipe["source_image_path"]:
             import requests
 
-            resp = requests.get(recipe["source_image_path"], timeout=30)
-            resp.raise_for_status()
-            media_type = "application/pdf" if recipe["source_image_path"].lower().endswith(".pdf") else "image/jpeg"
-            parsed = parse_recipe(resp.content, media_type, use_better_model=True)
+            # Handle multiple source images (newline-separated)
+            image_paths = [p.strip() for p in recipe["source_image_path"].split("\n") if p.strip()]
+
+            if len(image_paths) > 1:
+                # Multiple images - use parse_recipe_multi
+                files_with_types = []
+                for path in image_paths:
+                    resp = requests.get(path, timeout=30)
+                    resp.raise_for_status()
+                    media_type = "application/pdf" if path.lower().endswith(".pdf") else "image/jpeg"
+                    files_with_types.append((resp.content, media_type))
+                parsed = parse_recipe_multi(files_with_types, use_better_model=True)
+            else:
+                # Single image - use parse_recipe
+                resp = requests.get(image_paths[0], timeout=30)
+                resp.raise_for_status()
+                media_type = "application/pdf" if image_paths[0].lower().endswith(".pdf") else "image/jpeg"
+                parsed = parse_recipe(resp.content, media_type, use_better_model=True)
         else:
             parsed, _final_url = parse_recipe_from_url(recipe["source_url"], use_better_model=True)
     except (ParseError, FetchError) as exc:

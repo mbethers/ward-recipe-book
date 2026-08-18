@@ -11,7 +11,22 @@
 {% else %}
   <p class="hint">Here's what we read from your upload. Fix anything that's off, then send it in -
     an admin still double-checks it before it's published.</p>
-  {% if source_image_path %}
+  {% if source_image_paths %}
+    <div class="source-media-gallery">
+      {% for path in source_image_paths %}
+        {% if path.lower().endswith('.pdf') %}
+          <div class="source-media">
+            <iframe class="source-pdf" src="{{ path }}"></iframe>
+          </div>
+        {% else %}
+          <div class="source-media">
+            <img class="source-photo" src="{{ path }}" alt="Your uploaded recipe">
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% elif source_image_path %}
+    {# Backwards compat: single path as a string #}
     {% if source_image_path.lower().endswith('.pdf') %}
       <iframe class="source-pdf" src="{{ source_image_path }}"></iframe>
     {% else %}

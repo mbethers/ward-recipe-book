@@ -78,8 +78,14 @@
   </label>
 
   <label>Photo or PDF of the recipe
-    <input type="file" name="source_file" accept="image/*,.pdf,application/pdf" required>
+    <input type="file" name="source_files" accept="image/*,.pdf,application/pdf" multiple required>
+    <span class="hint">You can upload up to 3 images or PDFs. If a recipe spans multiple pages, upload them all together.</span>
   </label>
+
+  <div id="file-preview" class="file-preview" style="display: none;">
+    <p style="margin-top: 8px; margin-bottom: 4px; font-size: 0.9rem; color: var(--muted);"><strong>Selected files:</strong></p>
+    <ul id="preview-list" style="margin: 0; padding-left: 20px; font-size: 0.9rem;"></ul>
+  </div>
 
   <button type="submit" id="photo-submit-btn" class="primary-btn">Submit for reading</button>
 </form>

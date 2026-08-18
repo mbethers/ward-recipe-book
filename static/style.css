@@ -327,6 +327,17 @@ form textarea { resize: vertical; }
 .admin-review { display: flex; flex-direction: column; gap: 24px; }
 .source-photo, .source-pdf { width: 100%; border-radius: 10px; border: 1px solid var(--border); }
 .source-pdf { height: 500px; }
+.source-media-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 16px 0;
+}
+.source-media {
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
 .admin-actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
 
 .welcome-banner {

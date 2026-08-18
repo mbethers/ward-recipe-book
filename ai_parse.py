@@ -132,6 +132,82 @@ def parse_recipe(file_bytes: bytes, media_type: str, use_better_model: bool = Fa
     }
 
 
+def parse_recipe_multi(files_with_types: list[tuple[bytes, str]], use_better_model: bool = False) -> dict:
+    """Parse multiple recipe images/PDFs together. files_with_types is a list of
+    (file_bytes, media_type) tuples. Sends all to Claude in a single call for unified
+    context (e.g., 'these 3 pages are all from the same recipe')."""
+    if not files_with_types:
+        raise ParseError("No files provided to parse_recipe_multi")
+
+    model = BETTER_MODEL if use_better_model else DEFAULT_MODEL
+    client = _client()
+
+    # Build content blocks for all files
+    content_blocks = []
+    for file_bytes, media_type in files_with_types:
+        if media_type == "application/pdf":
+            content_blocks.append({
+                "type": "document",
+                "source": {"type": "base64", "media_type": media_type, "data": base64.b64encode(file_bytes).decode()},
+            })
+        else:
+            content_blocks.append({
+                "type": "image",
+                "source": {"type": "base64", "media_type": media_type, "data": base64.b64encode(file_bytes).decode()},
+            })
+
+    # Add the instruction
+    content_blocks.append({
+        "type": "text",
+        "text": "Extract this recipe as JSON per the system instructions. These are all pages/photos from the same recipe.",
+    })
+
+    try:
+        message = client.messages.create(
+            model=model,
+            max_tokens=2000,
+            system=SYSTEM_PROMPT,
+            messages=[{
+                "role": "user",
+                "content": content_blocks,
+            }],
+        )
+    except anthropic.APITimeoutError as exc:
+        raise ParseError("Claude took too long to respond (timed out).") from exc
+    except anthropic.APIError as exc:
+        raise ParseError(f"Claude API error: {exc}") from exc
+
+    raw_text = "".join(block.text for block in message.content if block.type == "text")
+    data = _extract_json(raw_text)
+
+    category = (data.get("category") or "").strip()
+    if category not in CATEGORIES:
+        category = "Other"
+
+    cuisine = (data.get("cuisine") or "").strip()
+    if cuisine not in CUISINES:
+        cuisine = "Other" if cuisine else ""
+
+    ingredients = data.get("ingredients") or []
+    instructions = data.get("instructions") or []
+    if isinstance(ingredients, str):
+        ingredients = [ingredients]
+    if isinstance(instructions, str):
+        instructions = [instructions]
+
+    return {
+        "name": (data.get("name") or "").strip(),
+        "category": category,
+        "cuisine": cuisine,
+        "prep_time": (data.get("prep_time") or "").strip(),
+        "servings": (data.get("servings") or "").strip(),
+        "ingredients": "\n".join(str(i).strip() for i in ingredients if str(i).strip()),
+        "instructions": "\n".join(str(s).strip() for s in instructions if str(s).strip()),
+        "story": (data.get("story") or "").strip(),
+        "parse_model": model,
+    }
+
+
 PROOFREAD_SYSTEM_PROMPT = """You are reviewing a submission to a church ward recipe book \
 before it's published, looking for three kinds of problems:
 
