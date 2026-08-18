@@ -133,7 +133,7 @@ def parse_recipe(file_bytes: bytes, media_type: str, use_better_model: bool = Fa
 
 
 PROOFREAD_SYSTEM_PROMPT = """You are reviewing a submission to a church ward recipe book \
-before it's published, looking for two kinds of problems:
+before it's published, looking for three kinds of problems:
 
 1. Clear, high-confidence spelling or wording mistakes - e.g. "Belgium Waffles" almost \
 certainly should be "Belgian Waffles" (country name used instead of the correct adjective).
@@ -148,6 +148,17 @@ bonus sections that aren't actually ingredients or steps (e.g. "Why this recipe 
 and should NOT be flagged - only flag actual leftover chat/markdown artifacts and \
 non-recipe content. Flag this as one combined issue naming what looks unedited, not one \
 issue per line.
+
+3. Formatting inconsistencies against the cookbook's house style guide - flag:
+   - Measurement abbreviations not standardized: "Tbsp." not "tbsp", "T", "Tablespoon"; \
+     "tsp." not "ts", "teaspoon"; "oz." and "lb." not "oz" or "lb"
+   - Fractions in slash form (1/4, 1/2, 3/4) instead of superscript (¼, ½, ¾) - flag so \
+     they can be converted
+   - Ingredient lines not matching pattern "number unit. [descriptor] ingredient [prep]" \
+     e.g. "melted butter" should be "butter, melted" (prep after); "avocado oil" is fine \
+     (descriptor is part of name)
+   - Capitalized ingredient names that shouldn't be: "Cornstarch" should be "cornstarch", \
+     "Butter" should be "butter" (unless it's a brand name like "Skippy peanut butter")
 
 Return ONLY valid JSON, no preamble, no markdown code fences: {"issues": ["short note", ...]}
 
