@@ -11,6 +11,7 @@ import ipaddress
 import json
 import re
 import socket
+from typing import Optional
 from urllib.parse import urlparse
 
 import requests
@@ -155,7 +156,7 @@ def _friendly_yield(value: object) -> str:
     return ""
 
 
-def _from_json_ld(soup: BeautifulSoup) -> dict | None:
+def _from_json_ld(soup: BeautifulSoup) -> Optional[dict]:
     """Looks for schema.org Recipe structured data. Most modern recipe sites
     include this for Google's benefit - when present it's more reliable than
     an AI guess, and free."""
