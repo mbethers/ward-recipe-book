@@ -689,9 +689,16 @@ def admin_recipe_edit(recipe_id):
     if not recipe:
         abort(404)
     active_dietary = set(recipe["dietary_tags"].split(",")) if recipe["dietary_tags"] else set()
+
+    # Split proofreading notes for template display
+    proofreading_notes_list = []
+    if recipe["proofreading_notes"]:
+        proofreading_notes_list = [note.strip() for note in recipe["proofreading_notes"].split("\n") if note.strip()]
+
     return render_template(
         "admin_edit.html",
         recipe=recipe,
+        proofreading_notes_list=proofreading_notes_list,
         categories=db.CATEGORIES,
         cuisines=db.CUISINES,
         dietary_options=db.DIETARY_TAGS,

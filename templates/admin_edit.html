@@ -46,21 +46,18 @@
   {% endif %}
 
   <div class="admin-fields">
-    {% if recipe.proofreading_notes %}
+    {% if proofreading_notes_list %}
       <div class="proofreading-notes">
         <h3>🔍 Possible issues to double-check</h3>
         <ul class="proofreading-list">
-          {% for note_line in recipe.proofreading_notes.split('
-') %}
-            {% if note_line.strip() %}
-              <li class="proofreading-item">
-                <span class="issue-text">{{ note_line.strip() }}</span>
-                <form method="post" action="{{ url_for('admin_recipe_preview_fix', recipe_id=recipe.id) }}" class="apply-fix-form">
-                  <input type="hidden" name="issue" value="{{ note_line.strip() }}">
-                  <button type="submit" class="apply-fix-btn" title="Review proposed fix">Fix</button>
-                </form>
-              </li>
-            {% endif %}
+          {% for note in proofreading_notes_list %}
+            <li class="proofreading-item">
+              <span class="issue-text">{{ note }}</span>
+              <form method="post" action="{{ url_for('admin_recipe_preview_fix', recipe_id=recipe.id) }}" class="apply-fix-form">
+                <input type="hidden" name="issue" value="{{ note }}">
+                <button type="submit" class="apply-fix-btn" title="Review proposed fix">Fix</button>
+              </form>
+            </li>
           {% endfor %}
         </ul>
       </div>
