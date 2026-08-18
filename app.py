@@ -19,7 +19,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 import psycopg
 
 import db
-from ai_parse import ParseError, parse_recipe, parse_recipe_multi, proofread_recipe
+from ai_parse import ParseError, parse_recipe, parse_recipe_multi, proofread_recipe, apply_recipe_fix
 import image_utils
 import email_utils
 import storage
@@ -816,6 +816,80 @@ def admin_recipe_reprocess(recipe_id):
     )
     conn.commit()
     flash("Reprocessed with the better model.")
+    return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
+
+
+@app.route("/admin/recipe/<int:recipe_id>/apply-fix", methods=["POST"])
+@admin_required
+def admin_recipe_apply_fix(recipe_id):
+    """Apply a specific proofreading issue fix suggested by Claude.
+    Admin clicks a button next to a proofreading note, and Claude fixes just that issue."""
+    conn = db.get_db()
+    recipe = conn.execute("SELECT * FROM recipes WHERE id = %s", (recipe_id,)).fetchone()
+    if not recipe:
+        abort(404)
+
+    issue_text = request.form.get("issue", "").strip()
+    if not issue_text:
+        flash("No issue specified.")
+        return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
+
+    # Ask Claude to apply this specific fix
+    fix_result = apply_recipe_fix(
+        recipe["name"],
+        recipe["ingredients"],
+        recipe["instructions"],
+        recipe["story"],
+        issue_text,
+    )
+
+    if not fix_result.get("success"):
+        flash(f"Could not apply fix: {fix_result.get('error', 'Unknown error')}")
+        return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
+
+    # Update the specific field that was fixed
+    fixed_field = fix_result.get("fixed_field")
+    fixed_value = fix_result.get("fixed")
+
+    if not fixed_field or fixed_value is None:
+        flash("Fix produced no changes.")
+        return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
+
+    # Update recipe with the fixed field
+    update_dict = {
+        fixed_field: fixed_value,
+        "proofreading_notes": "",  # Clear all notes since admin is actively fixing
+    }
+
+    if fixed_field == "name":
+        conn.execute(
+            "UPDATE recipes SET name=%s, proofreading_notes='' WHERE id=%s",
+            (fixed_value, recipe_id),
+        )
+    elif fixed_field == "ingredients":
+        conn.execute(
+            "UPDATE recipes SET ingredients=%s, proofreading_notes='' WHERE id=%s",
+            (fixed_value, recipe_id),
+        )
+    elif fixed_field == "instructions":
+        conn.execute(
+            "UPDATE recipes SET instructions=%s, proofreading_notes='' WHERE id=%s",
+            (fixed_value, recipe_id),
+        )
+    elif fixed_field == "story":
+        conn.execute(
+            "UPDATE recipes SET story=%s, proofreading_notes='' WHERE id=%s",
+            (fixed_value, recipe_id),
+        )
+
+    conn.commit()
+
+    # Show what was fixed
+    original = fix_result.get("original", "")
+    if len(original) > 60:
+        original = original[:60] + "…"
+    flash(f"✓ Fixed {fixed_field}: '{original}'")
+
     return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
 
 

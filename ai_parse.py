@@ -274,3 +274,53 @@ def proofread_recipe(name: str, ingredients: str, instructions: str, story: str)
     except Exception as exc:
         logging.getLogger(__name__).warning("Proofreading skipped: %s", exc)
         return []
+
+
+def apply_recipe_fix(name: str, ingredients: str, instructions: str, story: str, issue: str) -> dict:
+    """Apply a specific proofreading issue fix. Given a recipe and one specific issue,
+    have Claude fix just that issue and return the corrected field(s). Never raises on API errors.
+    Returns a dict with 'success', 'fixed_field', 'original', 'fixed' keys."""
+    try:
+        client = _client()
+        prompt = f"""You are fixing a specific issue in a recipe that was flagged during review.
+
+Current recipe:
+- Name: {name}
+- Ingredients: {ingredients}
+- Instructions: {instructions}
+- Story: {story}
+
+Issue to fix: {issue}
+
+Fix ONLY this specific issue. Do not make other changes. Return ONLY valid JSON with this shape:
+{{
+  "fixed_field": "name" | "ingredients" | "instructions" | "story",
+  "original": "the exact original text or value",
+  "fixed": "the corrected text or value"
+}}
+
+If the issue is about measurement abbreviations (Tbsp, tsp, oz, lb) or fractions (1/4 → ¼),
+fix ALL occurrences in the relevant field (ingredients or instructions).
+
+IMPORTANT: All temperatures are in Fahrenheit. Never convert or change temperature values.
+"""
+        message = client.messages.create(
+            model=DEFAULT_MODEL,
+            max_tokens=1000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw_text = "".join(block.text for block in message.content if block.type == "text")
+        data = _extract_json(raw_text)
+
+        return {
+            "success": True,
+            "fixed_field": data.get("fixed_field"),
+            "original": data.get("original"),
+            "fixed": data.get("fixed"),
+        }
+    except Exception as exc:
+        logging.getLogger(__name__).warning("Apply fix failed: %s", exc)
+        return {
+            "success": False,
+            "error": str(exc),
+        }

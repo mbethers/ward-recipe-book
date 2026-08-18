@@ -49,9 +49,15 @@
     {% if recipe.proofreading_notes %}
       <div class="proofreading-notes">
         <h3>🔍 Possible issues to double-check</h3>
-        <ul>
+        <ul class="proofreading-list">
           {% for note in recipe.proofreading_notes.split('\n') if note.strip() %}
-            <li>{{ note }}</li>
+            <li class="proofreading-item">
+              <span class="issue-text">{{ note }}</span>
+              <form method="post" action="{{ url_for('admin_recipe_apply_fix', recipe_id=recipe.id) }}" class="apply-fix-form">
+                <input type="hidden" name="issue" value="{{ note }}">
+                <button type="submit" class="apply-fix-btn" title="Let Claude fix this issue">Fix</button>
+              </form>
+            </li>
           {% endfor %}
         </ul>
       </div>
