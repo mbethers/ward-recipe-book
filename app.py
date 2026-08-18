@@ -907,6 +907,40 @@ def admin_recipe_reject_fix(recipe_id):
     return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
 
 
+@app.route("/admin/recipe/<int:recipe_id>/check-formatting", methods=["POST"])
+@admin_required
+def admin_recipe_check_formatting(recipe_id):
+    """Run proofreading check on any recipe (published or pending).
+    Generates a fresh list of formatting issues for Accept/Reject workflow.
+    Admin can send published recipes back through review process."""
+    conn = db.get_db()
+    recipe = conn.execute("SELECT * FROM recipes WHERE id = %s", (recipe_id,)).fetchone()
+    if not recipe:
+        abort(404)
+
+    # Run proofreading check on current recipe content
+    proofreading_notes = _run_proofreading(
+        recipe["name"],
+        recipe["ingredients"],
+        recipe["instructions"],
+        recipe["story"],
+    )
+
+    # Store the new proofreading notes (overwriting any old ones)
+    conn.execute(
+        "UPDATE recipes SET proofreading_notes=%s WHERE id=%s",
+        ("\n".join(proofreading_notes), recipe_id),
+    )
+    conn.commit()
+
+    if proofreading_notes:
+        flash(f"Found {len(proofreading_notes)} formatting issue(s). Review and fix them below.")
+    else:
+        flash("✓ No formatting issues found! Recipe looks good.")
+
+    return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
+
+
 @app.route("/admin/review/<int:review_id>/delete", methods=["POST"])
 @admin_required
 def admin_review_delete(review_id):

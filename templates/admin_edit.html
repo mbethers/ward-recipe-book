@@ -63,7 +63,15 @@
       </div>
     {% endif %}
 
-    <h2>Recipe details</h2>
+    <div class="admin-toolbar">
+      <h2>Recipe details</h2>
+      <form method="post" action="{{ url_for('admin_recipe_check_formatting', recipe_id=recipe.id) }}" class="check-formatting-form">
+        <button type="submit" class="secondary-btn" title="Run proofreading check for formatting issues">
+          ✓ Check formatting
+        </button>
+      </form>
+    </div>
+
     <form method="post" action="{{ url_for('admin_recipe_update', recipe_id=recipe.id) }}" id="recipe-edit-form">
       <label>Recipe name
         <input type="text" name="name" value="{{ recipe.name }}" required>
