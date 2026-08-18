@@ -55,6 +55,9 @@
               <span class="issue-text">{{ note }}</span>
               <form method="post" action="{{ url_for('admin_recipe_preview_fix', recipe_id=recipe.id) }}" class="apply-fix-form">
                 <input type="hidden" name="issue" value="{{ note }}">
+                {# Carried through the preview so accept-fix can drop the right
+                   line even if the text doesn't survive the round trip byte-for-byte. #}
+                <input type="hidden" name="issue_index" value="{{ loop.index0 }}">
                 <button type="submit" class="apply-fix-btn" title="Review proposed fix">Fix</button>
               </form>
             </li>

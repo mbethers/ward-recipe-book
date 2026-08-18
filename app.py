@@ -60,6 +60,36 @@ def _notify_admin(subject: str, body: str) -> None:
         app.logger.warning("Admin notification email not sent: %s", exc)
 
 
+def _normalize_issue(text: str) -> str:
+    """Collapse whitespace and curly quotes so an issue posted back through a
+    form still matches the line stored in the database."""
+    text = (text or "").replace("’", "'").replace("‘", "'")
+    text = text.replace("“", '"').replace("”", '"')
+    return " ".join(text.split()).strip().lower()
+
+
+def _drop_issue(stored_notes: str, issue_text: str, issue_index: str = "") -> str:
+    """Removes one issue from the stored proofreading notes.
+
+    Matches on normalized text first. Falls back to the row's index (carried
+    through the form) so a resolved issue still disappears even if its text
+    came back altered - otherwise the admin sees an issue they just fixed
+    sitting there with a Fix button on it."""
+    lines = [n.strip() for n in (stored_notes or "").split("\n") if n.strip()]
+    target = _normalize_issue(issue_text)
+
+    remaining = [n for n in lines if _normalize_issue(n) != target]
+    if len(remaining) == len(lines):  # nothing matched - fall back to the index
+        try:
+            idx = int(issue_index)
+        except (TypeError, ValueError):
+            idx = -1
+        if 0 <= idx < len(lines):
+            remaining = lines[:idx] + lines[idx + 1:]
+
+    return "\n".join(remaining)
+
+
 def _run_proofreading(name: str, ingredients: str, instructions: str, story: str) -> str:
     """Flags likely typos (e.g. "Belgium Waffles") for the admin to see during
     review - suggestions only, nothing is auto-changed. proofread_recipe()
@@ -860,6 +890,7 @@ def admin_recipe_preview_fix(recipe_id):
         "admin_fix_preview.html",
         recipe=recipe,
         issue=issue_text,
+        issue_index=request.form.get("issue_index", ""),
         proposal=proposal,
     )
 
@@ -888,12 +919,9 @@ def admin_recipe_accept_fix(recipe_id):
 
     # Drop the issue we just handled so the list shrinks as you work through
     # it - the other issues stay put, still each with their own decision.
-    remaining = [
-        note.strip()
-        for note in (recipe["proofreading_notes"] or "").split("\n")
-        if note.strip() and note.strip() != issue_text
-    ]
-    remaining_notes = "\n".join(remaining)
+    remaining_notes = _drop_issue(
+        recipe["proofreading_notes"], issue_text, request.form.get("issue_index", "")
+    )
 
     # Column name is from a fixed whitelist above, never user input.
     conn.execute(

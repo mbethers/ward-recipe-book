@@ -30,6 +30,7 @@
          and browsers would silently submit the accept form instead. #}
       <form method="post" action="{{ url_for('admin_recipe_accept_fix', recipe_id=recipe.id) }}">
         <input type="hidden" name="issue" value="{{ issue }}">
+        <input type="hidden" name="issue_index" value="{{ issue_index }}">
         <input type="hidden" name="original" value="{{ proposal.original }}">
         <input type="hidden" name="fixed_field" value="{{ proposal.fixed_field }}">
 
