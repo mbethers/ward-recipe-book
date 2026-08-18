@@ -693,7 +693,14 @@ def admin_recipe_edit(recipe_id):
     # Split proofreading notes for template display
     proofreading_notes_list = []
     if recipe["proofreading_notes"]:
-        proofreading_notes_list = [note.strip() for note in recipe["proofreading_notes"].split("\n") if note.strip()]
+        # Debug: Check what we're actually getting
+        raw_notes = recipe["proofreading_notes"]
+        app.logger.warning(f"DEBUG: Raw proofreading_notes repr: {repr(raw_notes)}")
+        app.logger.warning(f"DEBUG: Raw proofreading_notes length: {len(raw_notes)}")
+
+        # Try splitting by newline
+        proofreading_notes_list = [note.strip() for note in raw_notes.split("\n") if note.strip()]
+        app.logger.warning(f"DEBUG: Split result: {proofreading_notes_list}")
 
     return render_template(
         "admin_edit.html",
