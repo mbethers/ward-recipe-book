@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Suggest a correction - {{ recipe.name }}{% endblock %}
+{% block content %}
+
+<a class="back-link" href="{{ url_for('recipe_detail', recipe_id=recipe.id) }}">&larr; Back to the recipe</a>
+
+<h1>Suggest a correction</h1>
+<p class="hint">
+  Spotted a typo, a missing ingredient, or a step that isn't quite right in
+  <strong>{{ recipe.name }}</strong>? Fix it below and send it in.
+  <strong>Nothing changes on the site until an admin approves it</strong>, and they'll
+  see exactly what you changed.
+</p>
+
+<form method="post" action="{{ url_for('suggest_edit', recipe_id=recipe.id) }}">
+  {# Honeypot - hidden from people, catnip to simple bots. #}
+  <div class="hp" aria-hidden="true">
+    <label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+  </div>
+
+  <label>Your name
+    <input type="text" name="suggester_name" required maxlength="80">
+  </label>
+
+  <label>What are you fixing? <span class="hint">(optional, but it helps)</span>
+    <input type="text" name="note" maxlength="1000" placeholder="e.g. the sugar amount is wrong">
+  </label>
+
+  <hr class="soft-rule">
+
+  <label>Recipe name
+    <input type="text" name="name" value="{{ recipe.name }}" required maxlength="200">
+  </label>
+
+  <label>Category
+    <select name="category">
+      {% for c in categories %}
+        <option value="{{ c }}" {% if recipe.category == c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label>Cuisine
+    <select name="cuisine">
+      <option value="">Not sure / doesn't fit a category</option>
+      {% for c in cuisines %}
+        <option value="{{ c }}" {% if recipe.cuisine == c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label>Dietary</label>
+  <div class="checkbox-group">
+    {% for tag in dietary_options %}
+      <label class="checkbox-option">
+        <input type="checkbox" name="dietary" value="{{ tag }}"
+               {% if tag in active_dietary %}checked{% endif %}> {{ tag }}
+      </label>
+    {% endfor %}
+  </div>
+
+  <div class="field-row">
+    <label>Total prep time, including cooking/baking time
+      <input type="text" name="prep_time" value="{{ recipe.prep_time }}" maxlength="100">
+    </label>
+    <label>Servings
+      <input type="text" name="servings" value="{{ recipe.servings }}" maxlength="100">
+    </label>
+  </div>
+
+  <label>Ingredients <span class="hint">(one per line)</span>
+    <textarea name="ingredients" rows="10" maxlength="10000">{{ recipe.ingredients }}</textarea>
+  </label>
+
+  <label>Instructions
+    <textarea name="instructions" rows="10" maxlength="20000">{{ recipe.instructions }}</textarea>
+  </label>
+
+  <label>Story or memory
+    <textarea name="story" rows="3" maxlength="5000">{{ recipe.story }}</textarea>
+  </label>
+
+  <p class="hint">
+    Submitted by {{ recipe.submitter_name }} - who a recipe is credited to can only be
+    changed by an admin, so it isn't editable here.
+  </p>
+
+  <button type="submit" id="suggest-submit-btn" class="primary-btn">Send suggestion</button>
+</form>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% endblock %}

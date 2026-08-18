@@ -576,6 +576,18 @@ form textarea { resize: vertical; }
 .option-text {
   margin-top: 8px;
 }
+/* Honeypot: off-screen rather than display:none, which some bots skip. */
+.hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+.recipe-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 20px; }
+.suggest-link {
+  font-size: 0.9rem;
+  color: var(--terracotta-dark);
+  border-bottom: 1px dashed var(--terracotta);
+}
+.suggest-link:hover { text-decoration: none; border-bottom-style: solid; }
+.soft-rule { border: none; border-top: 1px solid var(--border); margin: 24px 0 8px; }
+
 .snippet-diff {
   border: 1px solid var(--border);
   border-radius: 6px;

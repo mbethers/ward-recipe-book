@@ -3,8 +3,11 @@
 {% block content %}
 <div class="confirmation">
   <div class="confirmation-icon">🎉</div>
-  <h1>Thanks! Your recipe is in the book.</h1>
-  <p class="muted">An admin will give it a quick look before it appears for everyone.</p>
+  <h1>Thanks! Your recipe is on its way in.</h1>
+  <p class="muted">
+    An admin reviews it before it appears for everyone — mostly tidying measurements and
+    formatting so it matches the rest of the cookbook. It usually shows up within a day or two.
+  </p>
   <div class="confirmation-actions">
     <a class="primary-btn" href="{{ url_for('submit_form') }}">Add another recipe</a>
     <a class="secondary-btn" href="{{ url_for('index') }}">Browse the recipe book</a>

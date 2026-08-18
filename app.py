@@ -3,7 +3,9 @@
 Public: browse/search published recipes, submit a recipe (typed or photo/PDF upload).
 Admin (/admin, password-gated): review pending submissions, edit, approve/reject.
 """
+import difflib
 import functools
+import json
 import os
 import re
 from datetime import datetime
@@ -28,6 +30,13 @@ from web_recipe import FetchError, parse_recipe_from_url
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-not-secret-change-me")
 app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024  # 15 MB
+# There are no CSRF tokens anywhere in this app. SameSite=Lax keeps the admin
+# session cookie off cross-site POSTs, which matters most for the correction
+# approve route - that's the one place where an outsider supplies the payload,
+# so a forged approve would publish their text without it ever being read.
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = True
+app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 db.register(app)
@@ -58,6 +67,133 @@ def _notify_admin(subject: str, body: str) -> None:
         email_utils.send_admin_notification(subject, body)
     except RuntimeError as exc:
         app.logger.warning("Admin notification email not sent: %s", exc)
+
+
+# --------------------------------------------- public correction suggestions --
+
+# What a visitor is allowed to propose. submitter_name is deliberately absent:
+# a correction can fix the recipe but must never reassign who it's credited to.
+# The approve SQL builds its column list from this tuple, never from the keys of
+# the stored JSON.
+SUGGESTABLE_FIELDS = (
+    "name", "category", "cuisine", "dietary_tags",
+    "prep_time", "servings", "ingredients", "instructions", "story",
+)
+FIELD_LABELS = {
+    "name": "Recipe name", "category": "Category", "cuisine": "Cuisine",
+    "dietary_tags": "Dietary", "prep_time": "Total prep time", "servings": "Servings",
+    "ingredients": "Ingredients", "instructions": "Instructions", "story": "Story",
+}
+MULTILINE_FIELDS = ("ingredients", "instructions", "story")
+# Emptying these would gut the recipe, so a blank value means "untouched".
+REQUIRED_FIELDS = ("name", "ingredients", "instructions")
+# MAX_CONTENT_LENGTH is a whole-body limit, so a 14MB urlencoded POST would sail
+# into a TEXT column. These are per-field, and over-length is refused outright -
+# silently truncating someone's recipe is the failure mode this app keeps hitting.
+FIELD_MAX = {
+    "name": 200, "category": 60, "cuisine": 60, "dietary_tags": 120,
+    "prep_time": 100, "servings": 100,
+    "ingredients": 10000, "instructions": 20000, "story": 5000,
+}
+MAX_PENDING_PER_RECIPE = 5
+
+
+def _norm(text) -> str:
+    """Normalize a submitted field for comparison and storage.
+
+    Browsers submit <textarea> content with CRLF line endings while the database
+    holds LF. Without this every untouched textarea reads as changed, so the
+    no-op check never fires and every diff shows every line replaced.
+    """
+    return (text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+
+
+def _collect_proposed(form, recipe) -> tuple:
+    """Works out which fields a suggestion actually changes.
+
+    Returns (proposed, base, error). `proposed` holds only the fields that
+    differ from the live recipe, `base` the live values of those same keys.
+    `error` is a message to show the visitor, or '' when the suggestion is fine.
+
+    A value that isn't in the allowed list for category/cuisine/dietary counts as
+    untouched rather than being coerced to a default - coercing would show the
+    admin a confident-looking "American -> Other" that the suggester never asked
+    for.
+    """
+    proposed, base = {}, {}
+
+    for field in SUGGESTABLE_FIELDS:
+        if field == "dietary_tags":
+            # Absent entirely means the form never offered it; present but empty
+            # legitimately means "clear the tags".
+            if "dietary" not in form:
+                continue
+            value = ",".join(t for t in form.getlist("dietary") if t in db.DIETARY_TAGS)
+        else:
+            if field not in form:
+                continue
+            value = _norm(form.get(field))
+
+        if len(value) > FIELD_MAX[field]:
+            return {}, {}, (
+                f"That {FIELD_LABELS[field].lower()} is too long "
+                f"({len(value)} characters, limit {FIELD_MAX[field]})."
+            )
+        if field == "category" and value and value not in db.CATEGORIES:
+            continue
+        if field == "cuisine" and value and value not in db.CUISINES:
+            continue
+
+        live = _norm(recipe[field])
+        if value == live:
+            continue
+        if field in REQUIRED_FIELDS and not value:
+            return {}, {}, f"{FIELD_LABELS[field]} can't be left empty."
+
+        proposed[field] = value
+        base[field] = live
+
+    if not proposed:
+        return {}, {}, "Nothing looked different from the recipe as it stands."
+    return proposed, base, ""
+
+
+def _diff_hunks(before: str, after: str) -> list:
+    """Line-level diff of one field -> [{'old': [...], 'new': [...]}, ...].
+
+    One entry per changed region; unchanged lines are dropped, since the review
+    screen shows the complete before/after separately. SequenceMatcher rather
+    than ndiff (which emits '? ' hint lines) or unified_diff (which emits @@
+    headers) - both would need stripping before display.
+    """
+    old_lines, new_lines = (before or "").splitlines(), (after or "").splitlines()
+    hunks = []
+    matcher = difflib.SequenceMatcher(None, old_lines, new_lines)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag != "equal":
+            hunks.append({"old": old_lines[i1:i2], "new": new_lines[j1:j2]})
+    return hunks
+
+
+def _build_field_diffs(recipe, proposed: dict, base: dict) -> list:
+    """One entry per changed field, for the admin review screen."""
+    diffs = []
+    for field in SUGGESTABLE_FIELDS:
+        if field not in proposed:
+            continue
+        live = _norm(recipe[field])
+        diffs.append({
+            "field": field,
+            "label": FIELD_LABELS[field],
+            "multiline": field in MULTILINE_FIELDS,
+            "before": live,
+            "after": proposed[field],
+            "hunks": _diff_hunks(live, proposed[field]) if field in MULTILINE_FIELDS else [],
+            # The recipe moved on since this was suggested - the admin should
+            # know the diff isn't against what the suggester was looking at.
+            "stale": base.get(field, live) != live,
+        })
+    return diffs
 
 
 # Phrases that mean Claude described the edit instead of writing the replacement
@@ -344,6 +480,87 @@ def submit_dish_photo(recipe_id):
     )
     flash("Thanks! Your photo will show up here once an admin approves it.")
     return redirect(anchor)
+
+
+def _published_recipe_or_404(conn, recipe_id):
+    recipe = conn.execute(
+        "SELECT * FROM recipes WHERE id = %s AND status = 'published'", (recipe_id,)
+    ).fetchone()
+    if not recipe:
+        abort(404)
+    return recipe
+
+
+@app.route("/recipe/<int:recipe_id>/suggest", methods=["GET"])
+def suggest_edit_form(recipe_id):
+    conn = db.get_db()
+    recipe = _published_recipe_or_404(conn, recipe_id)
+    active_dietary = set(recipe["dietary_tags"].split(",")) if recipe["dietary_tags"] else set()
+    return render_template(
+        "suggest_edit.html",
+        recipe=recipe,
+        categories=db.CATEGORIES,
+        cuisines=db.CUISINES,
+        dietary_options=db.DIETARY_TAGS,
+        active_dietary=active_dietary,
+    )
+
+
+@app.route("/recipe/<int:recipe_id>/suggest", methods=["POST"])
+def suggest_edit(recipe_id):
+    """Records a proposed correction. Writes nothing to the recipe itself -
+    the published version only ever changes from admin_correction_approve."""
+    conn = db.get_db()
+    recipe = _published_recipe_or_404(conn, recipe_id)
+    back = url_for("suggest_edit_form", recipe_id=recipe_id)
+
+    # Honeypot: a real person never fills a field they can't see.
+    if (request.form.get("website") or "").strip():
+        app.logger.info("Discarded honeypot correction for recipe %s", recipe_id)
+        flash("Thanks! An admin will look over your suggestion.")
+        return redirect(url_for("recipe_detail", recipe_id=recipe_id))
+
+    suggester_name = (request.form.get("suggester_name") or "").strip()
+    note = (request.form.get("note") or "").strip()
+    if not suggester_name:
+        flash("Please add your name so the admin knows who suggested this.")
+        return redirect(back)
+    if len(suggester_name) > 80 or len(note) > 1000:
+        flash("That name or note is longer than we can store - please shorten it.")
+        return redirect(back)
+
+    pending = conn.execute(
+        "SELECT COUNT(*) AS n FROM recipe_edits WHERE recipe_id = %s AND status = 'pending'",
+        (recipe_id,),
+    ).fetchone()["n"]
+    if pending >= MAX_PENDING_PER_RECIPE:
+        flash("There are already several suggestions waiting on this recipe - "
+              "please give the admin a chance to work through them first.")
+        return redirect(url_for("recipe_detail", recipe_id=recipe_id))
+
+    proposed, base, error = _collect_proposed(request.form, recipe)
+    if error:
+        flash(error)
+        return redirect(back)
+
+    conn.execute(
+        """INSERT INTO recipe_edits
+           (recipe_id, suggester_name, note, proposed, base, status, submitted_at)
+           VALUES (%s, %s, %s, %s, %s, 'pending', %s)""",
+        (recipe_id, suggester_name, note,
+         json.dumps(proposed), json.dumps(base), db.now_iso()),
+    )
+    conn.commit()
+
+    # Link only. The proposed text is supplied by the public and can be long -
+    # it belongs on the review screen, not in the admin's inbox.
+    _notify_admin(
+        f'Correction suggested for "{recipe["name"]}"',
+        f'{suggester_name} suggested a correction to "{recipe["name"]}".\n\n'
+        f"Review it: {url_for('admin_corrections', _external=True)}",
+    )
+    flash("Thanks! Your suggestion goes to an admin - the recipe stays as it is until they approve it.")
+    return redirect(url_for("recipe_detail", recipe_id=recipe_id))
 
 
 @app.route("/submit", methods=["GET"])
@@ -1085,6 +1302,103 @@ def admin_review_delete(review_id):
     conn.commit()
     flash("Review deleted.")
     return redirect(url_for("recipe_detail", recipe_id=review["recipe_id"]) + "#reviews")
+
+
+@app.route("/admin/corrections")
+@admin_required
+def admin_corrections():
+    conn = db.get_db()
+    pending = conn.execute(
+        """SELECT e.*, r.name AS recipe_name FROM recipe_edits e
+           JOIN recipes r ON r.id = e.recipe_id
+           WHERE e.status = 'pending' ORDER BY e.submitted_at ASC"""
+    ).fetchall()
+    return render_template("admin_corrections.html", corrections=pending)
+
+
+@app.route("/admin/correction/<int:edit_id>")
+@admin_required
+def admin_correction_detail(edit_id):
+    conn = db.get_db()
+    edit = conn.execute("SELECT * FROM recipe_edits WHERE id = %s", (edit_id,)).fetchone()
+    if not edit:
+        abort(404)
+    recipe = conn.execute("SELECT * FROM recipes WHERE id = %s", (edit["recipe_id"],)).fetchone()
+    if not recipe:
+        abort(404)
+
+    proposed = json.loads(edit["proposed"] or "{}")
+    base = json.loads(edit["base"] or "{}")
+    return render_template(
+        "admin_correction_detail.html",
+        edit=edit,
+        recipe=recipe,
+        field_diffs=_build_field_diffs(recipe, proposed, base),
+    )
+
+
+@app.route("/admin/correction/<int:edit_id>/approve", methods=["POST"])
+@admin_required
+def admin_correction_approve(edit_id):
+    """Applies a suggested correction to the live recipe.
+
+    Deliberately not routed through _save_recipe_fields: that writes
+    submitter_name, forces status, and blanks proofreading_notes - and anything
+    added to it later would silently join this path too.
+    """
+    conn = db.get_db()
+    edit = conn.execute("SELECT * FROM recipe_edits WHERE id = %s", (edit_id,)).fetchone()
+    if not edit:
+        abort(404)
+
+    # Claim the suggestion before touching the recipe, so a double-click (or a
+    # replayed POST) finds it already handled and writes nothing.
+    claimed = conn.execute(
+        "UPDATE recipe_edits SET status='approved', reviewed_at=%s "
+        "WHERE id=%s AND status='pending'",
+        (db.now_iso(), edit_id),
+    )
+    if claimed.rowcount != 1:
+        conn.rollback()
+        flash("That suggestion had already been handled - nothing was changed.")
+        return redirect(url_for("admin_corrections"))
+
+    proposed = json.loads(edit["proposed"] or "{}")
+    # Column names come from SUGGESTABLE_FIELDS, never from the stored JSON keys.
+    cols = [c for c in SUGGESTABLE_FIELDS if c in proposed]
+    if cols:
+        assignments = ", ".join(f"{c} = %s" for c in cols)
+        applied = conn.execute(
+            f"UPDATE recipes SET {assignments} WHERE id = %s AND status = 'published'",
+            [proposed[c] for c in cols] + [edit["recipe_id"]],
+        )
+        if applied.rowcount != 1:
+            conn.rollback()
+            flash("That recipe is no longer published - nothing was changed.")
+            return redirect(url_for("admin_corrections"))
+    conn.commit()
+
+    changed = ", ".join(FIELD_LABELS[c].lower() for c in cols) or "nothing"
+    flash(f"✓ Applied {edit['suggester_name']}'s correction ({changed}).")
+    return redirect(url_for("admin_corrections"))
+
+
+@app.route("/admin/correction/<int:edit_id>/reject", methods=["POST"])
+@admin_required
+def admin_correction_reject(edit_id):
+    conn = db.get_db()
+    rejected = conn.execute(
+        "UPDATE recipe_edits SET status='rejected', reviewed_at=%s "
+        "WHERE id=%s AND status='pending'",
+        (db.now_iso(), edit_id),
+    )
+    if rejected.rowcount != 1:
+        conn.rollback()
+        flash("That suggestion had already been handled.")
+        return redirect(url_for("admin_corrections"))
+    conn.commit()
+    flash("Suggestion rejected. The recipe is unchanged.")
+    return redirect(url_for("admin_corrections"))
 
 
 @app.route("/admin/photos")

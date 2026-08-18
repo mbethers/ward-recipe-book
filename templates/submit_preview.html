@@ -6,11 +6,13 @@
 {% if source_url %}
   <p class="hint">
     Here's what we pulled from <a href="{{ source_url }}" target="_blank" rel="noopener noreferrer">{{ source_url }}</a>.
-    Fix anything that's off, then send it in - an admin still double-checks it before it's published.
+    Fix anything that's off, then send it in - an admin reviews it and tidies the formatting
+    to match the rest of the cookbook before it's published.
   </p>
 {% else %}
   <p class="hint">Here's what we read from your upload. Fix anything that's off, then send it in -
-    an admin still double-checks it before it's published.</p>
+    an admin reviews it and tidies the formatting to match the rest of the cookbook
+    before it's published.</p>
   {% if source_image_paths %}
     <div class="source-media-gallery">
       {% for path in source_image_paths %}

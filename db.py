@@ -19,7 +19,7 @@ CATEGORIES = ["Appetizer", "Main", "Side", "Dessert", "Bread", "Breakfast", "Oth
 CUISINES = [
     "American", "Mexican", "Italian", "Indian", "Chinese", "Thai", "Japanese",
     "Korean", "Vietnamese", "Filipino", "Chilean", "Brazilian", "Peruvian",
-    "Greek", "French", "German", "Mediterranean", "Hawaiian/Pacific Islander",
+    "Greek", "French", "German", "Mediterranean", "Hawaiian",
     "African", "Other",
 ]
 
@@ -66,6 +66,27 @@ CREATE TABLE IF NOT EXISTS dish_photos (
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL DEFAULT ''
+);
+
+-- Corrections the public suggests on an already-published recipe. Kept in their
+-- own table rather than as extra rows in `recipes` so that publicly-supplied
+-- text is never one missing "WHERE status = 'published'" away from the live
+-- site. `proposed` holds ONLY the fields that actually differ, so approving an
+-- old suggestion can't quietly revert a field the admin edited since; `base`
+-- holds the live values of those same keys at suggest time, purely so the
+-- review screen can flag "this recipe changed since this was suggested".
+-- status is pending/approved/rejected - deliberately not dish_photos'
+-- 'published', which is the wrong word for an edit.
+CREATE TABLE IF NOT EXISTS recipe_edits (
+    id SERIAL PRIMARY KEY,
+    recipe_id INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+    suggester_name TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '',
+    proposed TEXT NOT NULL DEFAULT '{}',
+    base TEXT NOT NULL DEFAULT '{}',
+    status TEXT NOT NULL DEFAULT 'pending',
+    submitted_at TEXT NOT NULL,
+    reviewed_at TEXT
 );
 """
 

@@ -1,0 +1,27 @@
+{% extends "admin_base.html" %}
+{% block title %}Suggested corrections - Admin{% endblock %}
+{% block content %}
+
+{% include "_admin_nav.html" %}
+
+<h1>Suggested corrections ({{ corrections|length }})</h1>
+<p class="hint">Fixes ward members have suggested to recipes that are already published.
+  The published recipe is unchanged until you approve one.</p>
+
+{% if corrections|length == 0 %}
+  <p class="empty-state">All caught up - no suggestions waiting for review.</p>
+{% else %}
+  <div class="admin-list">
+    {% for c in corrections %}
+      <a class="admin-list-item" href="{{ url_for('admin_correction_detail', edit_id=c.id) }}">
+        <strong>{{ c.recipe_name }}</strong>
+        <span class="muted">
+          suggested by {{ c.suggester_name }} · {{ c.submitted_at|shortdate }}
+        </span>
+        {% if c.note %}<span class="muted">“{{ c.note }}”</span>{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% endblock %}

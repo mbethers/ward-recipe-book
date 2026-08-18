@@ -1,0 +1,115 @@
+{% extends "admin_base.html" %}
+{% block title %}Review correction - Admin{% endblock %}
+{% block content %}
+
+{% include "_admin_nav.html" %}
+
+<a class="back-link" href="{{ url_for('admin_corrections') }}">&larr; Back to suggestions</a>
+
+<div class="fix-preview-container">
+  <h1>Review suggested correction</h1>
+
+  <div class="fix-preview-card">
+    <div class="fix-issue">
+      <h2>{{ recipe.name }}</h2>
+      <p class="muted small">
+        Suggested by {{ edit.suggester_name }} · {{ edit.submitted_at|shortdate }}
+      </p>
+      {% if edit.note %}
+        <p class="issue-text">{{ edit.note }}</p>
+      {% endif %}
+    </div>
+
+    {% if edit.status != 'pending' %}
+      <div class="error-message">
+        This suggestion was already <strong>{{ edit.status }}</strong>. Nothing further
+        will be applied.
+      </div>
+    {% endif %}
+
+    {% if field_diffs %}
+      <p class="hint">
+        {{ field_diffs|length }} field{{ 's' if field_diffs|length != 1 }} would change.
+        Everything else on the recipe - including who it's credited to - is left alone.
+      </p>
+
+      {% for d in field_diffs %}
+        <div class="fix-proposed">
+          <h3>{{ d.label }}</h3>
+          {% if d.stale %}
+            <div class="error-message">
+              This recipe's {{ d.label|lower }} has changed since the suggestion was made.
+              The diff below is against the recipe as it stands right now.
+            </div>
+          {% endif %}
+
+          {% if d.multiline and d.hunks %}
+            {% for hunk in d.hunks %}
+              <div class="snippet-diff">
+                {% for line in hunk.old %}<div class="snippet-old">- {{ line }}</div>{% endfor %}
+                {% for line in hunk.new %}<div class="snippet-new">+ {{ line }}</div>{% endfor %}
+                {% if not hunk.new %}<div class="snippet-new snippet-removed">(removed)</div>{% endif %}
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="snippet-diff">
+              <div class="snippet-old">- {{ d.before or '(empty)' }}</div>
+              {% if d.after %}
+                <div class="snippet-new">+ {{ d.after }}</div>
+              {% else %}
+                <div class="snippet-new snippet-removed">(cleared)</div>
+              {% endif %}
+            </div>
+          {% endif %}
+
+          <details class="full-field-check">
+            <summary>The whole {{ d.label|lower }} field, before and after</summary>
+            <div class="field-compare">
+              <div>
+                <h4>Before</h4>
+                <div class="code-block">{{ d.before }}</div>
+              </div>
+              <div>
+                <h4>After</h4>
+                <div class="code-block">{{ d.after }}</div>
+              </div>
+            </div>
+          </details>
+        </div>
+      {% endfor %}
+
+      {% if edit.status == 'pending' %}
+        {# One form, two buttons - Reject overrides the action via formaction.
+           A nested <form> would be invalid HTML and browsers would silently
+           submit the approve form instead. #}
+        <form method="post" action="{{ url_for('admin_correction_approve', edit_id=edit.id) }}">
+          <div class="button-group">
+            <button type="submit" class="primary-btn">✓ Approve and apply</button>
+            <button type="submit" class="secondary-btn" formnovalidate
+                    formaction="{{ url_for('admin_correction_reject', edit_id=edit.id) }}">✗ Reject</button>
+          </div>
+        </form>
+      {% endif %}
+    {% else %}
+      <div class="error-message">
+        This suggestion no longer differs from the published recipe - it was probably
+        applied by hand already. Rejecting it just clears it from the queue.
+      </div>
+      {% if edit.status == 'pending' %}
+        <form method="post" action="{{ url_for('admin_correction_reject', edit_id=edit.id) }}">
+          <button type="submit" class="secondary-btn">Clear from queue</button>
+        </form>
+      {% endif %}
+    {% endif %}
+  </div>
+
+  <div class="fix-context">
+    <h3>Recipe context</h3>
+    <div class="context-item"><strong>Recipe:</strong>
+      <a href="{{ url_for('admin_recipe_edit', recipe_id=recipe.id) }}">{{ recipe.name }}</a></div>
+    <div class="context-item"><strong>Credited to:</strong> {{ recipe.submitter_name }}</div>
+    <div class="context-item"><strong>Status:</strong> {{ recipe.status }}</div>
+  </div>
+</div>
+
+{% endblock %}

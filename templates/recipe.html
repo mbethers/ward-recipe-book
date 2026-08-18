@@ -49,7 +49,12 @@
     {% endfor %}
   </ol>
 
-  <button class="print-btn no-print" onclick="window.print()">🖨️ Print / save this recipe</button>
+  <div class="recipe-actions no-print">
+    <button class="print-btn" onclick="window.print()">🖨️ Print / save this recipe</button>
+    <a class="suggest-link" href="{{ url_for('suggest_edit_form', recipe_id=recipe.id) }}">
+      ✏️ Suggest a correction
+    </a>
+  </div>
 
   <section id="photos" class="reviews-section no-print">
     <h2>Photos from ward members</h2>
