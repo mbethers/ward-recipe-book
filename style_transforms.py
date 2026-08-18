@@ -83,10 +83,8 @@ def fix_degrees(t):
     return t
 
 
-# name/story get fractions only - they're prose and may contain real ellipses.
-# fix_degrees is deliberately NOT in this list: 'degrees' -> °F was offered and
-# declined, so it stays out until asked for.
-BODY_ONLY = (fix_double_period, fix_card_units, fix_inches, fix_oz)
+# name/story get fractions only - they're prose and may contain real ellipses
+BODY_ONLY = (fix_double_period, fix_card_units, fix_inches, fix_oz, fix_degrees)
 
 
 def transform(field, value):
