@@ -1,0 +1,25 @@
+{
+  "recipe": {
+    "id": 14,
+    "name": "Veggie Weggie aka Vegetable Pizza",
+    "submitter_name": "Kaylyn Betancourt",
+    "category": "Main",
+    "ingredients": "1/2 cup ranch dressing mix",
+    "instructions": "Remove the duplicate fragments entirely, keeping only the core instruction: '2. Lay raw crescent roll dough flat on cookie sheet.' Then verify the complete instruction sequence starts fresh from step 1 to ensure all steps are in proper order and no other copy-paste fragments remain.",
+    "story": "My mom would make this appetizer every year for the Super Bowl, and then I kept making it in college for gatherings. It is so simple, but people would always ask me for the recipe.",
+    "photo_path": "https://ayysrwfpgoennefwngek.supabase.co/storage/v1/object/public/recipe-photos/dishes/2194b002a8cc47c3a893faa1e87463f7.jpg",
+    "source_image_path": null,
+    "status": "published",
+    "submitted_at": "2026-08-18T00:28:20+00:00",
+    "reviewed_at": "2026-08-18T00:43:13+00:00",
+    "parse_model": null,
+    "cuisine": "American",
+    "dietary_tags": "Vegetarian",
+    "source_url": "",
+    "proofreading_notes": "",
+    "prep_time": "",
+    "servings": "10"
+  },
+  "reviews": [],
+  "dish_photos": []
+}

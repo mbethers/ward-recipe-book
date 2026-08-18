@@ -1,7 +1,10 @@
 # University Ward Cookbook — House Style Guide
 
-**Version 1.1** | Last updated: August 2026
+**Version 1.2** | Last updated: August 2026
 
+> **Changed in 1.2:** inches used as an adjective are hyphenated with no period
+> (`9-in dish`).
+>
 > **Changed in 1.1:** fractions are now written in plain slash form (`1/2`), reversing the
 > superscript rule from 1.0. Added the package-size rule (`1 8oz.` → `8 oz.`).
 
@@ -45,6 +48,23 @@ Examples:
 - `4 cloves garlic, minced` (unit is part of measurement: "cloves")
 - `16 oz. super firm tofu` (when specifying a product type, include in descriptor)
 - `1/2 cup cooking oil (or substitute w/ applesauce)` (clarifications in parentheses are fine)
+
+### Dimensions Used as Adjectives
+When a measurement in inches describes the thing that follows it, hyphenate it and
+abbreviate to `in` — **no period**, because the hyphen already binds it to the noun and a
+period mid-phrase reads like a sentence ending:
+
+- ✓ `9-in pie crust`, `9-in dish`, `8-in square pan`, `1-in cubes`
+- ✗ `9in dish`, `9 in dish`, `9 in. dish`, `9 inch dish`, `9-inch dish`
+
+If the measurement is **not** describing a following noun, it isn't an adjective, so leave
+it unhyphenated and spell the unit out:
+
+- ✓ `Roll the dough out to about 9 inches.`
+- ✗ `Roll the dough out to about 9-in.`
+
+**Pan dimensions written as a pair keep their conventional form** — `9x13 pan`, not
+`9-in x 13-in pan`.
 
 ### Package & Container Sizes
 Drop a redundant leading `1` in front of a package size, and put a space between the
@@ -179,6 +199,9 @@ Capitalize the first word and proper nouns only:
 | Fraction | 1/4, 1/2, 3/4 | ¼, ½, ¾ |
 | Package size (one) | 8 oz. | 1 8oz., 1 8 oz. |
 | Package size (2+) | 3 8oz. — leave as written | — |
+| Inches as an adjective | 9-in dish | 9in, 9 in, 9 in., 9 inch, 9-inch |
+| Inches not as an adjective | to about 9 inches | to about 9-in |
+| Pan pair | 9x13 pan | 9-in x 13-in pan |
 | Range | 8–10 | 8-10, 8 to 10 |
 
 ---
@@ -209,6 +232,7 @@ When reviewing submissions before publishing, check:
 - [ ] **Measurements**: All Tbsp., tsp., oz., lb. have periods; cups are spelled out
 - [ ] **Fractions**: Slash form (1/4, 1/2) used; no superscript characters (¼, ½)
 - [ ] **Package sizes**: A leading `1` is dropped (`8 oz.`, not `1 8oz.`); counts of 2+ left as written
+- [ ] **Inches**: Hyphenated with no period when adjectival (`9-in dish`); spelled out otherwise (`9 inches`)
 - [ ] **Ingredient line order**: number unit. [descriptor] ingredient [prep]
 - [ ] **Capitalization**: Recipe name proper case; ingredients lowercase unless proper noun; steps start with capital
 - [ ] **Instructions**: Numbered, each starts with capital, each ends with period

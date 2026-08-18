@@ -237,6 +237,12 @@ issue per line.
      should be "8 oz. cream cheese" - drop the leading "1" and put a space between the \
      number and the unit. Only when the leading count is exactly 1. If the leading count \
      is 2 or more ("3 8oz. cans"), leave that line alone entirely - do NOT flag it.
+   - A measurement in inches that describes the noun after it must be hyphenated and \
+     abbreviated with NO period: "9-in dish", "9-in pie crust", "1-in cubes". Flag \
+     "9in dish", "9 in dish", "9 in. dish", "9 inch dish" and "9-inch dish". When the \
+     measurement is not describing a following noun it is not an adjective, so it stays \
+     unhyphenated and spelled out ("roll out to about 9 inches") - do NOT flag that. \
+     Paired pan dimensions keep their usual form ("9x13 pan") - do NOT flag those.
    - Ingredient lines not matching pattern "number unit. [descriptor] ingredient [prep]" \
      e.g. "melted butter" should be "butter, melted" (prep after); "avocado oil" is fine \
      (descriptor is part of name)
@@ -371,6 +377,10 @@ House style, for reference:
 - A leading "1" before a package size is dropped and the unit spaced: "1 8oz. cream
   cheese" becomes "8 oz. cream cheese". ONLY when the leading count is exactly 1. If the
   count is 2 or more ("3 8oz. cans"), leave that line exactly as written.
+- Inches describing the noun after them are hyphenated with NO period: "9-in dish",
+  "9-in pie crust", "1-in cubes". Not "9in", "9 in", "9 in.", "9 inch" or "9-inch". When
+  the measurement isn't describing a following noun it stays spelled out and unhyphenated
+  ("roll out to about 9 inches"). Paired pan dimensions keep their form: "9x13 pan".
 - All temperatures are Fahrenheit. Never convert or alter a temperature value.
 """
         message = client.messages.create(
