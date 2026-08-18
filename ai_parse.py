@@ -226,10 +226,17 @@ non-recipe content. Flag this as one combined issue naming what looks unedited, 
 issue per line.
 
 3. Formatting inconsistencies against the cookbook's house style guide - flag:
-   - Measurement abbreviations not standardized: "Tbsp." not "tbsp", "T", "Tablespoon"; \
-     "tsp." not "ts", "teaspoon"; "oz." and "lb." not "oz" or "lb"
-   - Fractions in slash form (1/4, 1/2, 3/4) instead of superscript (¼, ½, ¾) - flag so \
-     they can be converted
+   - Measurement abbreviations missing their period or not standardized. EVERY \
+     abbreviated unit takes a period: "Tbsp." not "tbsp"/"T"/"Tablespoon"; "tsp." not \
+     "ts"/"t"/"teaspoon"; "oz." not "oz"; "lb." not "lb"/"lbs". "cup" is spelled out, \
+     never abbreviated, and takes no period.
+   - Fractions written as special superscript/vulgar characters (¼, ½, ¾, ⅓, ⅔) - these \
+     should be plain slash form instead: "1/4", "1/2", "3/4", "1/3", "2/3". Flag so they \
+     can be converted back to slash form.
+   - A redundant leading "1" in front of a container/package size: "1 8oz. cream cheese" \
+     should be "8 oz. cream cheese" - drop the leading "1" and put a space between the \
+     number and the unit. Only when the leading count is exactly 1. If the leading count \
+     is 2 or more ("3 8oz. cans"), leave that line alone entirely - do NOT flag it.
    - Ingredient lines not matching pattern "number unit. [descriptor] ingredient [prep]" \
      e.g. "melted butter" should be "butter, melted" (prep after); "avocado oil" is fine \
      (descriptor is part of name)
@@ -318,9 +325,19 @@ Return ONLY valid JSON with this shape:
   ]
 }}
 
-If there's only one way to fix it, include only one option.
-If the issue is about measurement abbreviations (Tbsp, tsp, oz, lb) or fractions (1/4 → ¼),
-fix ALL occurrences in the relevant field (ingredients or instructions).
+If there's only one sensible way to fix it, include only one option - do not invent a
+second option just to have two.
+
+If the issue is about measurement abbreviations or fractions, fix ALL occurrences in the
+relevant field (ingredients or instructions). House style for those:
+- Every abbreviated unit takes a period: "Tbsp.", "tsp.", "oz.", "lb.". "cup" is spelled
+  out with no period.
+- Fractions are plain slash form: "1/4", "1/2", "3/4". NEVER use the superscript/vulgar
+  characters (¼, ½, ¾) - convert any of those to slash form.
+- A leading "1" before a package size is dropped and the unit is spaced:
+  "1 8oz. cream cheese" becomes "8 oz. cream cheese". This applies ONLY when the leading
+  count is exactly 1. If the count is 2 or more ("3 8oz. cans"), leave that line exactly
+  as written.
 
 IMPORTANT: All temperatures are in Fahrenheit. Never convert or change temperature values.
 Show the complete fixed text for the admin to review.
