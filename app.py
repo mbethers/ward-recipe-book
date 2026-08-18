@@ -115,6 +115,14 @@ def shortdate(iso_string):
     return f"{dt.month}/{dt.day}/{dt.strftime('%y')}"
 
 
+@app.template_filter("split_notes")
+def split_notes(text):
+    """Split proofreading notes by newline, filtering empty lines."""
+    if not text:
+        return []
+    return [line.strip() for line in text.split('\n') if line.strip()]
+
+
 # ------------------------------------------------------------- public UI --
 
 @app.route("/")
