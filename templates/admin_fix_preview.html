@@ -7,11 +7,11 @@
 <a class="back-link" href="{{ url_for('admin_recipe_edit', recipe_id=recipe.id) }}">&larr; Back to recipe</a>
 
 <div class="fix-preview-container">
-  <h1>Review Proposed Fix</h1>
+  <h1>Review proposed fix</h1>
 
   <div class="fix-preview-card">
     <div class="fix-issue">
-      <h2>Issue Identified</h2>
+      <h2>Issue identified</h2>
       <p class="issue-text">{{ issue }}</p>
     </div>
 
@@ -20,98 +20,68 @@
     </div>
 
     <div class="fix-original">
-      <h3>Original Text</h3>
-      <div class="code-block original-text">
-        {{ proposal.original }}
-      </div>
+      <h3>Original</h3>
+      <div class="code-block original-text">{{ proposal.original }}</div>
     </div>
 
-    {% if proposal.options and proposal.options|length > 0 %}
-      {% if proposal.options|length == 1 %}
-        {# Single option - just show it #}
-        <div class="fix-proposed">
-          <h3>Proposed Fix</h3>
-          <div class="code-block proposed-text">
-            {{ proposal.options[0].fixed }}
-          </div>
-          {% if proposal.options[0].explanation %}
-            <p class="explanation">
-              <strong>Why:</strong> {{ proposal.options[0].explanation }}
-            </p>
-          {% endif %}
-        </div>
+    {% if proposal.options %}
+      {# One form, two submit buttons. The reject button overrides the action
+         with formaction - nesting a second <form> here would be invalid HTML
+         and browsers would silently submit the accept form instead. #}
+      <form method="post" action="{{ url_for('admin_recipe_accept_fix', recipe_id=recipe.id) }}">
+        <input type="hidden" name="issue" value="{{ issue }}">
+        <input type="hidden" name="original" value="{{ proposal.original }}">
+        <input type="hidden" name="fixed_field" value="{{ proposal.fixed_field }}">
 
-        <form method="post" action="{{ url_for('admin_recipe_accept_fix', recipe_id=recipe.id) }}" class="fix-actions">
-          <input type="hidden" name="issue" value="{{ issue }}">
-          <input type="hidden" name="original" value="{{ proposal.original }}">
-          <input type="hidden" name="fixed_field" value="{{ proposal.fixed_field }}">
+        {% if proposal.options | length == 1 %}
+          <div class="fix-proposed">
+            <h3>Proposed fix</h3>
+            <div class="code-block proposed-text">{{ proposal.options[0].fixed }}</div>
+            {% if proposal.options[0].explanation %}
+              <p class="explanation"><strong>Why:</strong> {{ proposal.options[0].explanation }}</p>
+            {% endif %}
+          </div>
           <input type="hidden" name="chosen_fix" value="{{ proposal.options[0].fixed }}">
-
-          <div class="button-group">
-            <button type="submit" class="primary-btn">✓ Accept</button>
-            <form method="post" action="{{ url_for('admin_recipe_reject_fix', recipe_id=recipe.id) }}" style="display: inline;">
-              <button type="submit" class="secondary-btn">✗ Reject</button>
-            </form>
-          </div>
-        </form>
-
-      {% else %}
-        {# Multiple options - let them choose #}
-        <div class="fix-options">
-          <h3>Proposed Options</h3>
-          <p class="hint">Multiple ways to fix this. Choose the one you prefer:</p>
-
-          <form method="post" action="{{ url_for('admin_recipe_accept_fix', recipe_id=recipe.id) }}" class="fix-options-form">
-            <input type="hidden" name="issue" value="{{ issue }}">
-            <input type="hidden" name="original" value="{{ proposal.original }}">
-            <input type="hidden" name="fixed_field" value="{{ proposal.fixed_field }}">
-
-            {% for idx, option in enumerate(proposal.options) %}
+        {% else %}
+          <div class="fix-options">
+            <h3>Proposed options</h3>
+            <p class="hint">More than one way to fix this - pick the one you want:</p>
+            {% for option in proposal.options %}
               <div class="option-card">
                 <div class="option-header">
-                  <input type="radio" id="option-{{ idx }}" name="chosen_fix" value="{{ option.fixed }}"
-                    {% if idx == 0 %}checked{% endif %} required>
-                  <label for="option-{{ idx }}">
-                    <strong>Option {{ idx + 1 }}</strong>
-                    {% if option.explanation %}: {{ option.explanation }}{% endif %}
+                  <input type="radio" id="option-{{ loop.index0 }}" name="chosen_fix"
+                         value="{{ option.fixed }}" {% if loop.first %}checked{% endif %} required>
+                  <label for="option-{{ loop.index0 }}">
+                    <strong>Option {{ loop.index }}</strong>{% if option.explanation %}: {{ option.explanation }}{% endif %}
                   </label>
                 </div>
-                <div class="code-block option-text">
-                  {{ option.fixed }}
-                </div>
+                <div class="code-block option-text">{{ option.fixed }}</div>
               </div>
             {% endfor %}
+          </div>
+        {% endif %}
 
-            <div class="button-group">
-              <button type="submit" class="primary-btn">✓ Accept Selected Option</button>
-              <form method="post" action="{{ url_for('admin_recipe_reject_fix', recipe_id=recipe.id) }}" style="display: inline;">
-                <button type="submit" class="secondary-btn">✗ Reject All Options</button>
-              </form>
-            </div>
-          </form>
+        <div class="button-group">
+          <button type="submit" class="primary-btn">✓ Accept</button>
+          <button type="submit" class="secondary-btn" formnovalidate
+                  formaction="{{ url_for('admin_recipe_reject_fix', recipe_id=recipe.id) }}">✗ Reject</button>
         </div>
-      {% endif %}
+      </form>
     {% else %}
       <div class="error-message">
-        No options were proposed. This might be a complex issue that needs manual editing.
+        No fix could be proposed for this one - it probably needs editing by hand.
       </div>
       <form method="post" action="{{ url_for('admin_recipe_reject_fix', recipe_id=recipe.id) }}">
-        <button type="submit" class="secondary-btn">Return to Recipe</button>
+        <button type="submit" class="secondary-btn">Back to recipe</button>
       </form>
     {% endif %}
   </div>
 
   <div class="fix-context">
-    <h3>Recipe Context</h3>
-    <div class="context-item">
-      <strong>Recipe:</strong> {{ recipe.name }}
-    </div>
-    <div class="context-item">
-      <strong>Submitter:</strong> {{ recipe.submitter_name }}
-    </div>
-    <div class="context-item">
-      <strong>Status:</strong> {{ recipe.status }}
-    </div>
+    <h3>Recipe context</h3>
+    <div class="context-item"><strong>Recipe:</strong> {{ recipe.name }}</div>
+    <div class="context-item"><strong>Submitter:</strong> {{ recipe.submitter_name }}</div>
+    <div class="context-item"><strong>Status:</strong> {{ recipe.status }}</div>
   </div>
 </div>
 
