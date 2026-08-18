@@ -869,6 +869,10 @@ def admin_recipe_reprocess(recipe_id):
         flash(f"Reprocessing failed: {exc}")
         return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
 
+    # Never let a reprocess blank out a field that currently has content. A
+    # story is usually typed by the submitter and isn't on the recipe card at
+    # all, so a re-read of the photo legitimately returns nothing for it -
+    # writing that empty string back would silently delete their words.
     conn.execute(
         """UPDATE recipes SET name=%s, category=%s, cuisine=%s, prep_time=%s, servings=%s,
            ingredients=%s, instructions=%s, story=%s, parse_model=%s WHERE id=%s""",
@@ -878,9 +882,9 @@ def admin_recipe_reprocess(recipe_id):
             parsed.get("cuisine") or recipe["cuisine"],
             parsed.get("prep_time") or recipe["prep_time"],
             parsed.get("servings") or recipe["servings"],
-            parsed["ingredients"],
-            parsed["instructions"],
-            parsed["story"],
+            parsed["ingredients"] or recipe["ingredients"],
+            parsed["instructions"] or recipe["instructions"],
+            parsed["story"] or recipe["story"],
             parsed["parse_model"],
             recipe_id,
         ),
