@@ -239,7 +239,13 @@ h2 { font-size: 1.1rem; margin: 20px 0 8px; }
   flex-direction: column;
 }
 .recipe-card:hover { text-decoration: none; border-color: var(--terracotta); }
-.recipe-card-photo { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; background: var(--border); }
+/* margin-top: auto pushes the photo to the bottom of the card. .recipe-grid
+   is display:grid, so cards in the same row already stretch to match the
+   tallest one; .recipe-card is already a flex column - so a card with a
+   short title/byline just gets empty space above its photo instead of the
+   photo floating high, and every photo in a row lands on the same baseline
+   regardless of how much text sits above it. */
+.recipe-card-photo { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; background: var(--border); margin-top: auto; }
 .recipe-card-body { padding: 10px 12px; }
 .recipe-card-body h3 { margin: 4px 0; font-size: 1rem; }
 
