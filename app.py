@@ -115,14 +115,6 @@ def shortdate(iso_string):
     return f"{dt.month}/{dt.day}/{dt.strftime('%y')}"
 
 
-@app.template_filter("split_notes")
-def split_notes(text):
-    """Split proofreading notes by newline, filtering empty lines."""
-    if not text:
-        return []
-    return [line.strip() for line in text.split('\n') if line.strip()]
-
-
 # ------------------------------------------------------------- public UI --
 
 @app.route("/")
@@ -690,17 +682,11 @@ def admin_recipe_edit(recipe_id):
         abort(404)
     active_dietary = set(recipe["dietary_tags"].split(",")) if recipe["dietary_tags"] else set()
 
-    # Split proofreading notes for template display
-    proofreading_notes_list = []
-    if recipe["proofreading_notes"]:
-        # Debug: Check what we're actually getting
-        raw_notes = recipe["proofreading_notes"]
-        app.logger.warning(f"DEBUG: Raw proofreading_notes repr: {repr(raw_notes)}")
-        app.logger.warning(f"DEBUG: Raw proofreading_notes length: {len(raw_notes)}")
-
-        # Try splitting by newline
-        proofreading_notes_list = [note.strip() for note in raw_notes.split("\n") if note.strip()]
-        app.logger.warning(f"DEBUG: Split result: {proofreading_notes_list}")
+    # Split here rather than in the template - Jinja has no clean way to split
+    # on a newline literal.
+    proofreading_notes_list = [
+        note.strip() for note in (recipe["proofreading_notes"] or "").split("\n") if note.strip()
+    ]
 
     return render_template(
         "admin_edit.html",
@@ -940,7 +926,8 @@ def admin_recipe_check_formatting(recipe_id):
     if not recipe:
         abort(404)
 
-    # Run proofreading check on current recipe content
+    # _run_proofreading already returns the newline-joined string we store -
+    # joining it again would split it between every character.
     proofreading_notes = _run_proofreading(
         recipe["name"],
         recipe["ingredients"],
@@ -951,12 +938,13 @@ def admin_recipe_check_formatting(recipe_id):
     # Store the new proofreading notes (overwriting any old ones)
     conn.execute(
         "UPDATE recipes SET proofreading_notes=%s WHERE id=%s",
-        ("\n".join(proofreading_notes), recipe_id),
+        (proofreading_notes, recipe_id),
     )
     conn.commit()
 
-    if proofreading_notes:
-        flash(f"Found {len(proofreading_notes)} formatting issue(s). Review and fix them below.")
+    issue_count = len([n for n in proofreading_notes.split("\n") if n.strip()])
+    if issue_count:
+        flash(f"Found {issue_count} formatting issue(s). Review and fix them below.")
     else:
         flash("✓ No formatting issues found! Recipe looks good.")
 
