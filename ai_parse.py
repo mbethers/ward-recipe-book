@@ -290,57 +290,88 @@ def proofread_recipe(name: str, ingredients: str, instructions: str, story: str)
 
 
 def propose_recipe_fix(name: str, ingredients: str, instructions: str, story: str, issue: str) -> dict:
-    """Propose a fix for a specific proofreading issue without applying it.
-    Returns options for the admin to review and choose from.
-    Returns a dict with 'success', 'fixed_field', 'options' keys.
-    Each option has 'original', 'fixed', 'explanation'.
+    """Propose a fix for one proofreading issue without applying it.
+
+    Claude returns a SNIPPET to find and a SNIPPET to put in its place, never a
+    whole replacement field. The caller splices the snippet into the existing
+    text, so a partial or waffly answer can no longer wipe out a whole
+    ingredient list - if the snippet isn't found verbatim, nothing is written.
+
+    Returns {'success', 'fixed_field', 'original_snippet', 'options': [
+    {'fixed_snippet', 'explanation'}]}.
     """
     try:
         client = _client()
-        prompt = f"""You are proposing a fix for a specific issue in a recipe that was flagged during review.
+        fields = {
+            "name": name or "",
+            "ingredients": ingredients or "",
+            "instructions": instructions or "",
+            "story": story or "",
+        }
+        prompt = f"""A recipe in a church ward cookbook was flagged during review. Propose a
+fix as a find-and-replace, so a human can apply it safely.
 
-Current recipe:
-- Name: {name}
-- Ingredients: {ingredients}
-- Instructions: {instructions}
-- Story: {story}
+Here are the recipe's fields, exactly as stored.
+
+<name>
+{fields["name"]}
+</name>
+
+<ingredients>
+{fields["ingredients"]}
+</ingredients>
+
+<instructions>
+{fields["instructions"]}
+</instructions>
+
+<story>
+{fields["story"]}
+</story>
 
 Issue to fix: {issue}
 
-Propose ONE or TWO ways to fix this issue (not more). Do NOT apply the fix - just suggest it.
-Return ONLY valid JSON with this shape:
+Return ONLY valid JSON, no preamble, no markdown fences, in exactly this shape:
 
 {{
   "fixed_field": "name" | "ingredients" | "instructions" | "story",
-  "original": "the exact original text that needs fixing",
+  "original_snippet": "text copied VERBATIM from that field",
   "options": [
-    {{
-      "fixed": "proposed fix option 1",
-      "explanation": "why this is the right fix"
-    }},
-    {{
-      "fixed": "proposed fix option 2 (if applicable)",
-      "explanation": "alternative approach"
-    }}
+    {{"fixed_snippet": "what that snippet should become", "explanation": "why"}}
   ]
 }}
 
-If there's only one sensible way to fix it, include only one option - do not invent a
-second option just to have two.
+CRITICAL RULES - the fix is discarded unless these hold:
 
-If the issue is about measurement abbreviations or fractions, fix ALL occurrences in the
-relevant field (ingredients or instructions). House style for those:
+1. "original_snippet" MUST be copied character-for-character from the field named in
+   "fixed_field". It is used for an exact string match. Do not paraphrase it, do not fix
+   its spelling, do not add or remove surrounding whitespace, do not add line numbers or
+   bullets it does not have. If you cannot quote it exactly, return
+   {{"fixed_field": "", "original_snippet": "", "options": []}}.
+
+2. "fixed_snippet" is the literal replacement text ONLY. It is substituted directly into
+   the recipe. NEVER write a description of the change. Text like "Remove the duplicate
+   line" or "This should be changed to..." is wrong and would be pasted into the cookbook
+   verbatim. Write only the corrected recipe text itself.
+
+3. Keep the snippet as small as possible while still being unique in the field - ideally
+   the single line that needs changing. If several lines need the same correction,
+   include exactly those lines, in order, joined by newlines, and nothing else.
+
+4. To delete a line entirely, set "fixed_snippet" to an empty string.
+
+5. Give ONE option. Add a second ONLY if there is a genuinely different reasonable
+   approach - never invent one for the sake of having two.
+
+House style, for reference:
 - Every abbreviated unit takes a period: "Tbsp.", "tsp.", "oz.", "lb.". "cup" is spelled
   out with no period.
-- Fractions are plain slash form: "1/4", "1/2", "3/4". NEVER use the superscript/vulgar
-  characters (¼, ½, ¾) - convert any of those to slash form.
-- A leading "1" before a package size is dropped and the unit is spaced:
-  "1 8oz. cream cheese" becomes "8 oz. cream cheese". This applies ONLY when the leading
-  count is exactly 1. If the count is 2 or more ("3 8oz. cans"), leave that line exactly
-  as written.
-
-IMPORTANT: All temperatures are in Fahrenheit. Never convert or change temperature values.
-Show the complete fixed text for the admin to review.
+- Fractions are plain slash form: "1/4", "1/2", "3/4". NEVER the superscript characters
+  (¼, ½, ¾) - convert any of those to slash form.
+- A leading "1" before a package size is dropped and the unit spaced: "1 8oz. cream
+  cheese" becomes "8 oz. cream cheese". ONLY when the leading count is exactly 1. If the
+  count is 2 or more ("3 8oz. cans"), leave that line exactly as written.
+- All temperatures are Fahrenheit. Never convert or alter a temperature value.
 """
         message = client.messages.create(
             model=DEFAULT_MODEL,
@@ -350,11 +381,41 @@ Show the complete fixed text for the admin to review.
         raw_text = "".join(block.text for block in message.content if block.type == "text")
         data = _extract_json(raw_text)
 
+        fixed_field = (data.get("fixed_field") or "").strip()
+        original_snippet = data.get("original_snippet") or ""
+        raw_options = data.get("options") or []
+
+        if fixed_field not in fields:
+            return {"success": False, "error": f"Claude named an unknown field: {fixed_field!r}"}
+        if not original_snippet:
+            return {"success": False, "error": "Claude didn't identify any text to change."}
+        # The whole safety guarantee rests on this: if the quoted snippet isn't
+        # actually in the field, we have nothing we can splice, so we stop here
+        # rather than overwriting anything.
+        if original_snippet not in fields[fixed_field]:
+            return {
+                "success": False,
+                "error": "Claude's quote of the original text didn't match the recipe, "
+                         "so the fix was discarded rather than risk mangling it. "
+                         "Try again, or edit the field by hand.",
+            }
+
+        options = []
+        for opt in raw_options[:2]:
+            if not isinstance(opt, dict) or "fixed_snippet" not in opt:
+                continue
+            options.append({
+                "fixed_snippet": str(opt.get("fixed_snippet") or ""),
+                "explanation": str(opt.get("explanation") or "").strip(),
+            })
+        if not options:
+            return {"success": False, "error": "Claude didn't propose a usable replacement."}
+
         return {
             "success": True,
-            "fixed_field": data.get("fixed_field"),
-            "original": data.get("original"),
-            "options": data.get("options", []),
+            "fixed_field": fixed_field,
+            "original_snippet": original_snippet,
+            "options": options,
         }
     except Exception as exc:
         logging.getLogger(__name__).warning("Propose fix failed: %s", exc)

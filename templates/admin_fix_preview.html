@@ -16,66 +16,86 @@
     </div>
 
     <div class="fix-field-info">
-      <strong>Field to fix:</strong> <span class="field-badge">{{ proposal.fixed_field }}</span>
+      <strong>Field to change:</strong> <span class="field-badge">{{ proposal.fixed_field }}</span>
     </div>
 
-    <div class="fix-original">
-      <h3>Original</h3>
-      <div class="code-block original-text">{{ proposal.original }}</div>
-    </div>
+    {# One form, two submit buttons. The reject button overrides the action with
+       formaction - a nested <form> would be invalid HTML and browsers would
+       silently submit the accept form instead. #}
+    <form method="post" action="{{ url_for('admin_recipe_accept_fix', recipe_id=recipe.id) }}">
+      <input type="hidden" name="issue" value="{{ issue }}">
+      <input type="hidden" name="issue_index" value="{{ issue_index }}">
+      <input type="hidden" name="fixed_field" value="{{ proposal.fixed_field }}">
+      <input type="hidden" name="original_snippet" value="{{ proposal.original_snippet }}">
 
-    {% if proposal.options %}
-      {# One form, two submit buttons. The reject button overrides the action
-         with formaction - nesting a second <form> here would be invalid HTML
-         and browsers would silently submit the accept form instead. #}
-      <form method="post" action="{{ url_for('admin_recipe_accept_fix', recipe_id=recipe.id) }}">
-        <input type="hidden" name="issue" value="{{ issue }}">
-        <input type="hidden" name="issue_index" value="{{ issue_index }}">
-        <input type="hidden" name="original" value="{{ proposal.original }}">
-        <input type="hidden" name="fixed_field" value="{{ proposal.fixed_field }}">
-
-        {% if proposal.options | length == 1 %}
-          <div class="fix-proposed">
-            <h3>Proposed fix</h3>
-            <div class="code-block proposed-text">{{ proposal.options[0].fixed }}</div>
-            {% if proposal.options[0].explanation %}
-              <p class="explanation"><strong>Why:</strong> {{ proposal.options[0].explanation }}</p>
+      {% if proposal.options | length == 1 %}
+        {% set opt = proposal.options[0] %}
+        <div class="fix-proposed">
+          <h3>The change</h3>
+          <div class="snippet-diff">
+            <div class="snippet-old">- {{ proposal.original_snippet }}</div>
+            {% if opt.is_deletion %}
+              <div class="snippet-new snippet-removed">(this text would be removed)</div>
+            {% else %}
+              <div class="snippet-new">+ {{ opt.fixed_snippet }}</div>
             {% endif %}
           </div>
-          <input type="hidden" name="chosen_fix" value="{{ proposal.options[0].fixed }}">
-        {% else %}
-          <div class="fix-options">
-            <h3>Proposed options</h3>
-            <p class="hint">More than one way to fix this - pick the one you want:</p>
-            {% for option in proposal.options %}
-              <div class="option-card">
-                <div class="option-header">
-                  <input type="radio" id="option-{{ loop.index0 }}" name="chosen_fix"
-                         value="{{ option.fixed }}" {% if loop.first %}checked{% endif %} required>
-                  <label for="option-{{ loop.index0 }}">
-                    <strong>Option {{ loop.index }}</strong>{% if option.explanation %}: {{ option.explanation }}{% endif %}
-                  </label>
-                </div>
-                <div class="code-block option-text">{{ option.fixed }}</div>
-              </div>
-            {% endfor %}
-          </div>
-        {% endif %}
-
-        <div class="button-group">
-          <button type="submit" class="primary-btn">✓ Accept</button>
-          <button type="submit" class="secondary-btn" formnovalidate
-                  formaction="{{ url_for('admin_recipe_reject_fix', recipe_id=recipe.id) }}">✗ Reject</button>
+          {% if opt.explanation %}
+            <p class="explanation"><strong>Why:</strong> {{ opt.explanation }}</p>
+          {% endif %}
         </div>
-      </form>
-    {% else %}
-      <div class="error-message">
-        No fix could be proposed for this one - it probably needs editing by hand.
+        <input type="hidden" name="chosen_fix" value="{{ opt.fixed_snippet }}">
+
+        <details class="full-field-check" open>
+          <summary>The whole <strong>{{ proposal.fixed_field }}</strong> field, before and after</summary>
+          <div class="field-compare">
+            <div>
+              <h4>Before</h4>
+              <div class="code-block">{{ field_before }}</div>
+            </div>
+            <div>
+              <h4>After</h4>
+              <div class="code-block">{{ opt.field_after }}</div>
+            </div>
+          </div>
+        </details>
+
+      {% else %}
+        <div class="fix-options">
+          <h3>Proposed options</h3>
+          <p class="hint">More than one way to fix this - pick the one you want:</p>
+          {% for opt in proposal.options %}
+            <div class="option-card">
+              <div class="option-header">
+                <input type="radio" id="option-{{ loop.index0 }}" name="chosen_fix"
+                       value="{{ opt.fixed_snippet }}" {% if loop.first %}checked{% endif %}>
+                <label for="option-{{ loop.index0 }}">
+                  <strong>Option {{ loop.index }}</strong>{% if opt.explanation %}: {{ opt.explanation }}{% endif %}
+                </label>
+              </div>
+              <div class="snippet-diff">
+                <div class="snippet-old">- {{ proposal.original_snippet }}</div>
+                {% if opt.is_deletion %}
+                  <div class="snippet-new snippet-removed">(this text would be removed)</div>
+                {% else %}
+                  <div class="snippet-new">+ {{ opt.fixed_snippet }}</div>
+                {% endif %}
+              </div>
+              <details class="full-field-check">
+                <summary>Whole {{ proposal.fixed_field }} field if you pick this</summary>
+                <div class="code-block">{{ opt.field_after }}</div>
+              </details>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <div class="button-group">
+        <button type="submit" class="primary-btn">✓ Accept</button>
+        <button type="submit" class="secondary-btn" formnovalidate
+                formaction="{{ url_for('admin_recipe_reject_fix', recipe_id=recipe.id) }}">✗ Reject</button>
       </div>
-      <form method="post" action="{{ url_for('admin_recipe_reject_fix', recipe_id=recipe.id) }}">
-        <button type="submit" class="secondary-btn">Back to recipe</button>
-      </form>
-    {% endif %}
+    </form>
   </div>
 
   <div class="fix-context">

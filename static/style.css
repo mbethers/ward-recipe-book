@@ -509,6 +509,37 @@ form textarea { resize: vertical; }
 .option-text {
   margin-top: 8px;
 }
+.snippet-diff {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.snippet-old, .snippet-new {
+  padding: 8px 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.snippet-old { background: #fdeceb; color: #7d2b23; }
+.snippet-new { background: #eaf5e8; color: #2f5427; }
+.snippet-removed { font-style: italic; opacity: 0.85; }
+
+.full-field-check { margin-top: 12px; }
+.full-field-check summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--muted);
+  padding: 4px 0;
+}
+.field-compare { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+.field-compare h4 { margin: 0 0 4px; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+@media (min-width: 720px) {
+  .field-compare { flex-direction: row; }
+  .field-compare > div { flex: 1; min-width: 0; }
+}
+
 .error-message {
   background: #fee;
   border: 1px solid #fcc;

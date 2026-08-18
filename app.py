@@ -60,6 +60,39 @@ def _notify_admin(subject: str, body: str) -> None:
         app.logger.warning("Admin notification email not sent: %s", exc)
 
 
+# Phrases that mean Claude described the edit instead of writing the replacement
+# text. These read as editorial instructions and effectively never occur in an
+# actual recipe, so seeing one means the "fix" would paste commentary into the
+# cookbook - which is exactly what happened to the Veggie Weggie instructions.
+_EDITORIAL_PHRASES = re.compile(
+    r"\b("
+    r"keeping only|the core instruction|copy[- ]paste|duplicate fragment|"
+    r"should be (changed|replaced|rewritten)|corrected version|here is the corrected|"
+    r"verify the complete|remove the duplicate|the entire (line|section) should"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _reject_reason(original_snippet: str, fixed_snippet: str) -> str:
+    """Returns why a proposed replacement must not be written, or '' if it's safe.
+
+    A fix edits recipe text. Anything that reads like a description of an edit,
+    or that collapses a multi-line list into a single line, is a malfunction -
+    and writing it destroys the recipe."""
+    if _EDITORIAL_PHRASES.search(fixed_snippet or ""):
+        return ("the replacement reads as a description of the change rather than "
+                "the corrected recipe text")
+
+    # A deletion (empty replacement) is fine and is handled by the size check.
+    if (fixed_snippet or "").strip():
+        original_lines = len((original_snippet or "").strip().splitlines())
+        fixed_lines = len(fixed_snippet.strip().splitlines())
+        if original_lines >= 3 and fixed_lines == 1:
+            return (f"it would collapse {original_lines} lines into a single line")
+    return ""
+
+
 def _normalize_issue(text: str) -> str:
     """Collapse whitespace and curly quotes so an issue posted back through a
     form still matches the line stored in the database."""
@@ -885,13 +918,40 @@ def admin_recipe_preview_fix(recipe_id):
         flash(f"Could not propose fix: {proposal.get('error', 'Unknown error')}")
         return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
 
-    # Show the preview screen with options
+    # Drop any option the accept step would refuse, so we never show an Accept
+    # button for a change that can't be applied.
+    safe_options = []
+    for opt in proposal["options"]:
+        if _reject_reason(proposal["original_snippet"], opt["fixed_snippet"]):
+            app.logger.warning(
+                "Discarded unsafe fix proposal for recipe %s: %s", recipe_id, opt
+            )
+            continue
+        safe_options.append(opt)
+
+    if not safe_options:
+        flash("Claude's suggested fix didn't look safe to apply, so it was discarded. "
+              "Nothing was changed - you can edit the field by hand.")
+        return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
+    proposal["options"] = safe_options
+
+    # Build the real before/after for the WHOLE field, so what's on screen is
+    # exactly what would be written - a line-level diff hid the fact that the
+    # whole column was being replaced.
+    field_before = recipe[proposal["fixed_field"]] or ""
+    for opt in proposal["options"]:
+        opt["field_after"] = field_before.replace(
+            proposal["original_snippet"], opt["fixed_snippet"]
+        )
+        opt["is_deletion"] = opt["fixed_snippet"].strip() == ""
+
     return render_template(
         "admin_fix_preview.html",
         recipe=recipe,
         issue=issue_text,
         issue_index=request.form.get("issue_index", ""),
         proposal=proposal,
+        field_before=field_before,
     )
 
 
@@ -905,16 +965,46 @@ def admin_recipe_accept_fix(recipe_id):
         abort(404)
 
     issue_text = request.form.get("issue", "").strip()
-    chosen_fix = request.form.get("chosen_fix", "").strip()
     fixed_field = request.form.get("fixed_field", "").strip()
+    original_snippet = request.form.get("original_snippet", "")
+    fixed_snippet = request.form.get("chosen_fix", "")
 
-    if not issue_text or not chosen_fix or not fixed_field:
-        flash("Missing fix details.")
+    if not issue_text or not fixed_field or not original_snippet:
+        flash("Missing fix details - nothing was changed.")
         return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
 
-    # Validate fixed_field
-    if fixed_field not in ["name", "ingredients", "instructions", "story"]:
-        flash("Invalid field specified.")
+    if fixed_field not in ("name", "ingredients", "instructions", "story"):
+        flash("Invalid field specified - nothing was changed.")
+        return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
+
+    # Splice the snippet into the stored text here rather than trusting the form
+    # to carry a whole replacement field. Re-checking against the recipe as it
+    # is right now also catches the case where it changed since the preview.
+    field_before = recipe[fixed_field] or ""
+    if original_snippet not in field_before:
+        flash(
+            "That text is no longer in the recipe, so nothing was changed. "
+            "The recipe may have been edited since the preview - try the fix again."
+        )
+        return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
+
+    reason = _reject_reason(original_snippet, fixed_snippet)
+    if reason:
+        flash(f"That fix was blocked because {reason}. Nothing was changed - "
+              "please edit the field by hand.")
+        return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
+
+    field_after = field_before.replace(original_snippet, fixed_snippet)
+
+    # Backstop against a fix that would gut the field. A real correction edits a
+    # line or two; anything that removes most of the text is a bug, not a fix.
+    # Deliberate deletions are small, so measure against the snippet's own size.
+    lost = len(field_before) - len(field_after)
+    if lost > len(original_snippet) + 20:
+        flash(
+            "That fix would have removed far more text than it should have, so it "
+            "was blocked. Nothing was changed - please edit the field by hand."
+        )
         return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
 
     # Drop the issue we just handled so the list shrinks as you work through
@@ -923,18 +1013,15 @@ def admin_recipe_accept_fix(recipe_id):
         recipe["proofreading_notes"], issue_text, request.form.get("issue_index", "")
     )
 
-    # Column name is from a fixed whitelist above, never user input.
+    # Column name is from the fixed whitelist above, never raw user input.
     conn.execute(
         f"UPDATE recipes SET {fixed_field}=%s, proofreading_notes=%s WHERE id=%s",
-        (chosen_fix, remaining_notes, recipe_id),
+        (field_after, remaining_notes, recipe_id),
     )
     conn.commit()
 
-    # Show confirmation with the issue that was fixed
-    original = request.form.get("original", "")
-    if len(original) > 60:
-        original = original[:60] + "…"
-    flash(f"✓ Applied fix to {fixed_field}: '{original}'")
+    shown = original_snippet if len(original_snippet) <= 60 else original_snippet[:60] + "…"
+    flash(f"✓ Applied fix to {fixed_field}: '{shown}'")
 
     return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
 
