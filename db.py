@@ -14,7 +14,7 @@ import psycopg
 from psycopg.rows import dict_row
 from flask import g
 
-CATEGORIES = ["Main", "Side", "Dessert", "Bread", "Breakfast", "Other"]
+CATEGORIES = ["Appetizer", "Main", "Side", "Dessert", "Bread", "Breakfast", "Other"]
 
 CUISINES = [
     "American", "Mexican", "Italian", "Indian", "Chinese", "Thai", "Japanese",
