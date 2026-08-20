@@ -8,3 +8,7 @@ venv/
 
 # Generated import data, not source - D1 bulk import output and its backups
 d1_import_output*.json
+
+# Generated seed data for the not-yet-created Bethers Family Cookbook
+bethers_family_seed.json
+bethers_family_seed_photos/
