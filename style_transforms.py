@@ -73,6 +73,21 @@ def fix_card_units(t):
     return t
 
 
+def fix_tb(t):
+    """Bare 'TB' -> 'Tbsp.' Seen as the D1 cookbook's only tablespoon spelling,
+    consistently uppercase with no period. Absorbs an optional trailing period
+    so this is idempotent regardless of execution order relative to the other
+    BODY_ONLY functions."""
+    return re.sub(r"\bTB\b\.?", "Tbsp.", t or "")
+
+
+def fix_bare_tsp(t):
+    """Bare 'tsp' -> 'tsp.' Seen as the D1 cookbook's only teaspoon spelling,
+    consistently missing the house-style period. Same idempotency note as
+    fix_tb."""
+    return re.sub(r"\btsp\b\.?", "tsp.", t or "")
+
+
 def fix_degrees(t):
     """A bare degree sign or the word 'degrees' -> °F. Never converts a value."""
     t = t or ""
@@ -84,7 +99,7 @@ def fix_degrees(t):
 
 
 # name/story get fractions only - they're prose and may contain real ellipses
-BODY_ONLY = (fix_double_period, fix_card_units, fix_inches, fix_oz, fix_degrees)
+BODY_ONLY = (fix_double_period, fix_card_units, fix_tb, fix_bare_tsp, fix_inches, fix_oz, fix_degrees)
 
 
 def transform(field, value):
