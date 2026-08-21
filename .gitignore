@@ -16,3 +16,7 @@ bethers_family_seed_photos/
 # Icon/branding work for the D1 and Bethers Family forks - belongs in
 # those repos' own static/ folders once they exist, not in this one
 branding/
+
+# Local Supabase CLI state (created automatically by running `supabase`
+# commands from this directory) - not project source
+supabase/

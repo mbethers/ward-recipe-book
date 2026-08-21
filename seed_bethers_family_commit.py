@@ -94,7 +94,11 @@ def run_commit(database_url: str, entries: list, reset_first: bool) -> None:
 
     rows = [build_row(entry, upload_photos=True) for entry in entries]
 
-    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+    # prepare_threshold=None: Supabase's pooler runs PgBouncer in transaction
+    # mode, which doesn't support psycopg3's default server-side prepared
+    # statements (a name collision across pooled connections can raise
+    # DuplicatePreparedStatement, especially with executemany's batch path).
+    with psycopg.connect(database_url, row_factory=dict_row, prepare_threshold=None) as conn:
         if reset_first:
             deleted = conn.execute("DELETE FROM recipes WHERE cookbook = 'family'")
             conn.commit()

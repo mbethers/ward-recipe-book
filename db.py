@@ -215,7 +215,15 @@ def get_db() -> psycopg.Connection:
                 "DATABASE_URL isn't set. Add the Supabase Postgres connection string "
                 "(Project Settings -> Database -> Connection string -> Transaction pooler)."
             )
-        g.db = psycopg.connect(database_url, row_factory=dict_row, autocommit=False)
+        # prepare_threshold=None: Supabase's pooler runs PgBouncer in
+        # transaction mode, which doesn't support psycopg3's default
+        # server-side prepared statements - a name collision across pooled
+        # connections can surface as DuplicatePreparedStatement (found
+        # while loading D1/Family data via executemany, which hits this
+        # much more readily than this app's single-statement requests do).
+        g.db = psycopg.connect(
+            database_url, row_factory=dict_row, autocommit=False, prepare_threshold=None
+        )
     return g.db
 
 
@@ -231,7 +239,7 @@ def init_db():
     database_url = _database_url()
     if not database_url:
         return
-    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+    with psycopg.connect(database_url, row_factory=dict_row, prepare_threshold=None) as conn:
         with conn.cursor() as cur:
             cur.execute(SCHEMA)
             cur.execute(DROP_THEMES)

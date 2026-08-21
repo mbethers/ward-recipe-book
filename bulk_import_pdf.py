@@ -526,7 +526,11 @@ def run_commit(database_url: str, reset_first: bool) -> None:
     os.environ["DATABASE_URL"] = database_url
     db_module.init_db()
 
-    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+    # prepare_threshold=None: Supabase's pooler runs PgBouncer in transaction
+    # mode, which doesn't support psycopg3's default server-side prepared
+    # statements - a name collision across pooled connections can raise
+    # DuplicatePreparedStatement, especially with executemany's batch path.
+    with psycopg.connect(database_url, row_factory=dict_row, prepare_threshold=None) as conn:
         if reset_first:
             # Scoped to this cookbook only - a bare TRUNCATE here would wipe
             # every cookbook sharing this database, not just D1's rows.
