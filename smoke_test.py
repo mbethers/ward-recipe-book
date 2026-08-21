@@ -95,7 +95,11 @@ class Conn:
         if s.startswith(("insert", "delete", "update")):
             return Result([{"id": 7}])
 
-        if "count(*)" in s and "recipe_edits" in s:
+        if "count(*)" in s:
+            # Covers recipe_edits, recipes, and dish_photos pending-count
+            # queries alike (e.g. the superadmin launcher's "[#] Reviews
+            # pending" tally) - none of this stub's state represents a
+            # real table to count rows in, so 0 for all of them.
             return Result([{"n": 0}])
         if "from recipe_edits" in s:
             return Result([dict(EDIT_STATE)])
@@ -419,6 +423,10 @@ check("tiles link through the handoff route, not straight to /admin/login",
       and "/superadmin/enter/family" in body)
 check("tiles use the regular icon, not the admin (bishop-badge) one",
       "admin-icon-512.png" not in body and "icon-512.png" in body)
+check("UW and Family tiles show a 'Reviews pending' line",
+      re.search(r"\d+ Reviews pending", body) is not None)
+check("D1 tile shows no 'Reviews pending' line at all (nothing there is ever reviewable)",
+      body.count("Reviews pending") == 2)
 
 print("\nSuperadmin -> per-cookbook admin handoff (no second password):\n")
 r = client.get("/superadmin/enter/uw", headers=SUPERADMIN_HOST)

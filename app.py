@@ -1058,7 +1058,27 @@ def superadmin_launcher():
     if not session.get("superadmin_authed"):
         return redirect(url_for("superadmin_login"))
     ordered = [cookbooks.BY_SLUG[slug] for slug in SUPERADMIN_ORDER]
-    return render_template("superadmin.html", cookbook_list=ordered)
+
+    # "[#] Reviews pending" per tile - pending recipes plus (separately)
+    # pending dish photos, for whichever cookbooks actually take
+    # submissions. D1 is a locked historical snapshot (allow_submissions is
+    # already False there) so nothing is ever pending for it - skip the
+    # query and the tile just shows no line at all, rather than "0 Reviews
+    # pending".
+    conn = db.get_db()
+    pending_counts = {}
+    for cb in ordered:
+        if not cb.allow_submissions:
+            continue
+        n_recipes = conn.execute(
+            "SELECT count(*) AS n FROM recipes WHERE cookbook = %s AND status = 'pending'", (cb.slug,)
+        ).fetchone()["n"]
+        n_photos = conn.execute(
+            "SELECT count(*) AS n FROM dish_photos WHERE cookbook = %s AND status = 'pending'", (cb.slug,)
+        ).fetchone()["n"]
+        pending_counts[cb.slug] = n_recipes + n_photos
+
+    return render_template("superadmin.html", cookbook_list=ordered, pending_counts=pending_counts)
 
 
 @app.route("/superadmin/enter/<slug>")
