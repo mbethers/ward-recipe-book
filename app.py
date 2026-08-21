@@ -952,8 +952,8 @@ def _manifest_response(name: str, short_name: str, start_url: str, icon_prefix: 
         "short_name": short_name,
         "start_url": start_url,
         "display": "standalone",
-        "background_color": "#fbf6ee",
-        "theme_color": cb.accent_primary,
+        "background_color": cb.palette["cream"],
+        "theme_color": cb.palette["terracotta"],
         "icons": [
             {
                 "src": url_for("static", filename=f"{cb.icon_dir}{icon_prefix}icon-192.png"),

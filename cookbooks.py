@@ -7,11 +7,21 @@ incoming request's Host header. Each cookbook's custom domain is attached
 to the same Render service; this module is the only place those real
 hostnames need to be recorded.
 
-Accent colors are drawn from each cookbook's own icon art (see branding/),
-not an arbitrary palette - they replace the two CSS variables (`--terracotta`
-/ `--terracotta-dark`) already used pervasively throughout style.css, via a
-small inline <style> override in base.html. Every pair here was checked for
-WCAG contrast against white text (used by buttons/badges) before picking it.
+Each cookbook supplies a `palette` - a full set of CSS custom-property
+overrides (not just an accent color), emitted verbatim as a per-request
+inline <style> block in base.html. UW/Family share the same warm neutral
+palette (cream paper background, warm dark "ink") and differ only in their
+accent; D1 overrides the neutrals too, for a genuinely different white/
+black/green look built around its own icon art (see branding/d1/) rather
+than just recoloring the same UW skin.
+
+Every accent pair here was chosen by checking WCAG contrast against both
+white and black text (see the git history for the actual numbers) - a
+light/bright accent like D1's green reads fine as a filled button
+background with black text on it, but fails badly as text-on-white, so
+`terracotta`/`terracotta-dark` intentionally serve two different roles
+(fill vs. standalone text/links) rather than being interchangeable, and
+`on-accent` picks which text color pairs with a filled accent background.
 """
 import os
 from dataclasses import dataclass
@@ -22,8 +32,7 @@ class Cookbook:
     slug: str
     name: str
     hostnames: frozenset
-    accent_primary: str      # --terracotta override - links, buttons, borders
-    accent_secondary: str    # --terracotta-dark override - hover/active/dark-badge states
+    palette: dict            # CSS custom-property name -> value, e.g. {"terracotta": "#c1613f"}
     icon_dir: str             # "" for UW's existing flat static/*.png, "d1/"/"family/" for the others
     admin_password_env: str
     allow_submissions: bool   # new recipes, corrections, added dish photos
@@ -31,13 +40,23 @@ class Cookbook:
     footer_tagline: str
 
 
+# UW and Family share these neutrals (warm paper/ink) and differ only in
+# their accent pair - this is the palette both were already using live.
+_WARM_NEUTRALS = {
+    "cream": "#fbf6ee",
+    "ink": "#2f2620",
+    "muted": "#7a6f61",
+    "sage": "#7f9473",
+    "border": "#e8ddcb",
+    "on-accent": "#fff",
+}
+
 COOKBOOKS = [
     Cookbook(
         slug="uw",
         name="University Ward",
         hostnames=frozenset({"uw-cookbook.bethers.dev"}),
-        accent_primary="#c1613f",
-        accent_secondary="#a34f31",
+        palette={**_WARM_NEUTRALS, "terracotta": "#c1613f", "terracotta-dark": "#a34f31"},
         icon_dir="",
         admin_password_env="ADMIN_PASSWORD_UW",
         allow_submissions=True,
@@ -48,8 +67,25 @@ COOKBOOKS = [
         slug="d1",
         name="Durham 1st Ward",
         hostnames=frozenset({"d1-cookbook.bethers.dev"}),
-        accent_primary="#5a3619",
-        accent_secondary="#3e220d",
+        # White background, black text, the bowl-and-spoon icon's own green
+        # as the only color - not a recolor of UW's warm paper skin.
+        # --terracotta (bright #7ed957, sampled from branding/d1/) fills
+        # buttons/badges (paired with on-accent = black, ~12:1 contrast).
+        # --terracotta-dark is a deliberately different, darker green
+        # (~4.3:1 against both white and black) for standalone text/links
+        # and hover fills - the bright shade fails badly as text-on-white
+        # (~1.8:1). --sage reuses the same green rather than introducing a
+        # second, competing green for category badges.
+        palette={
+            "cream": "#ffffff",
+            "ink": "#000000",
+            "muted": "#666666",
+            "sage": "#7ed957",
+            "border": "#e0e0e0",
+            "on-accent": "#000000",
+            "terracotta": "#7ed957",
+            "terracotta-dark": "#3f8a20",
+        },
         icon_dir="d1/",
         admin_password_env="ADMIN_PASSWORD_D1",
         # Locked historical snapshot: no new content, no interaction at all -
@@ -62,8 +98,7 @@ COOKBOOKS = [
         slug="family",
         name="Bethers Family",
         hostnames=frozenset({"family-cookbook.bethers.dev"}),
-        accent_primary="#c47026",
-        accent_secondary="#8a4d18",
+        palette={**_WARM_NEUTRALS, "terracotta": "#c47026", "terracotta-dark": "#8a4d18"},
         icon_dir="family/",
         admin_password_env="ADMIN_PASSWORD_FAMILY",
         allow_submissions=True,

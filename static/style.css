@@ -8,6 +8,13 @@
   --sage: #7f9473;
   --border: #e8ddcb;
   --danger: #b5443a;
+  /* Text color for content sitting on a --terracotta/--terracotta-dark/
+     --sage fill. Defaults to white (works fine against every current
+     cookbook's accent) but a cookbook with a light/bright accent - e.g.
+     D1's green, ~1.8:1 contrast with white text vs ~12:1 with black -
+     overrides this per-request in base.html rather than every fill
+     staying hardcoded to white. */
+  --on-accent: #fff;
   --radius: 14px;
   --max-width: 720px;
 }
@@ -55,7 +62,7 @@ a:hover { text-decoration: underline; }
 .brand-logo { width: 84px; height: 84px; border-radius: 18px; display: block; }
 .site-header .add-link {
   background: var(--terracotta);
-  color: #fff;
+  color: var(--on-accent);
   padding: 8px 14px;
   border-radius: 999px;
   font-size: 0.9rem;
@@ -88,8 +95,8 @@ a:hover { text-decoration: underline; }
   cursor: pointer;
   font-family: inherit;
 }
-.site-footer .share-link:hover { background: var(--terracotta); color: #fff; }
-.site-footer .share-link.copied { background: var(--sage); border-color: var(--sage); color: #fff; }
+.site-footer .share-link:hover { background: var(--terracotta); color: var(--on-accent); }
+.site-footer .share-link.copied { background: var(--sage); border-color: var(--sage); color: var(--on-accent); }
 
 .flash-wrap { max-width: var(--max-width); margin: 12px auto 0; padding: 0 16px; }
 .flash {
@@ -153,7 +160,7 @@ h2 { font-size: 1.1rem; margin: 20px 0 8px; }
    this holds without JavaScript. */
 .filter-select.filter-on {
   background: var(--terracotta-dark);
-  color: #fff;
+  color: var(--on-accent);
   border-color: var(--terracotta-dark);
 }
 
@@ -192,7 +199,7 @@ h2 { font-size: 1.1rem; margin: 20px 0 8px; }
   border-radius: 8px;
   border: none;
   background: var(--terracotta);
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
   font-size: 0.85rem;
   cursor: pointer;
@@ -246,7 +253,7 @@ h2 { font-size: 1.1rem; margin: 20px 0 8px; }
 .badge {
   display: inline-block;
   background: var(--sage);
-  color: #fff;
+  color: var(--on-accent);
   font-size: 0.72rem;
   font-weight: 600;
   padding: 2px 9px;
@@ -333,7 +340,7 @@ form textarea { resize: vertical; }
   cursor: pointer;
   display: inline-block;
 }
-.primary-btn { background: var(--terracotta); color: #fff; }
+.primary-btn { background: var(--terracotta); color: var(--on-accent); }
 .primary-btn:hover { background: var(--terracotta-dark); text-decoration: none; }
 .secondary-btn { background: var(--paper); color: var(--ink); border: 1px solid var(--border); }
 .danger-btn { background: #fbeae7; color: var(--danger); border: 1px solid #f2c9c2; }
@@ -461,7 +468,7 @@ form textarea { resize: vertical; }
 .apply-fix-btn {
   padding: 4px 10px;
   background: var(--terracotta);
-  color: white;
+  color: var(--on-accent);
   border: none;
   border-radius: 6px;
   font-size: 0.8rem;
@@ -505,7 +512,7 @@ form textarea { resize: vertical; }
 }
 .field-badge {
   background: var(--terracotta-dark);
-  color: white;
+  color: var(--on-accent);
   padding: 3px 8px;
   border-radius: 4px;
   font-weight: 600;
@@ -654,7 +661,7 @@ form textarea { resize: vertical; }
 }
 
 /* Ratings & reviews */
-.star-display { color: var(--terracotta); letter-spacing: 1px; }
+.star-display { color: var(--terracotta-dark); letter-spacing: 1px; }
 .recipe-meta { display: flex; gap: 16px; color: var(--muted); font-size: 0.9rem; margin: 6px 0 0; }
 .rating-summary { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.95rem; margin: 4px 0 16px; }
 .rating-summary-small { font-size: 0.85rem; margin: 4px 0 0; }
@@ -705,7 +712,7 @@ form textarea { resize: vertical; }
 .star-input label { color: var(--border); cursor: pointer; padding: 0 2px; }
 .star-input input:checked ~ label,
 .star-input label:hover,
-.star-input label:hover ~ label { color: var(--terracotta); }
+.star-input label:hover ~ label { color: var(--terracotta-dark); }
 
 /* Wider screens: side-by-side admin review, more grid columns */
 @media (min-width: 700px) {

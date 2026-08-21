@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ ward_name }} Cookbook{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  {# Overrides style.css's default (University Ward) accent with this
-     request's cookbook - comes after the stylesheet link so the cascade
-     picks it up without !important. #}
-  <style>:root{--terracotta:{{ cookbook.accent_primary }};--terracotta-dark:{{ cookbook.accent_secondary }};}</style>
+  {# Overrides style.css's default (University Ward) palette with this
+     request's cookbook's full palette - comes after the stylesheet link so
+     the cascade picks it up without !important. D1 overrides every one of
+     these (white/black/green), not just the accent pair. #}
+  <style>:root{ {% for prop, value in cookbook.palette.items() %}--{{ prop }}:{{ value }};{% endfor %} }</style>
   <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename=cookbook.icon_dir + 'favicon-32.png') }}">
   <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename=cookbook.icon_dir + 'favicon-16.png') }}">
   {% block home_screen_meta %}
@@ -16,7 +17,7 @@
   <meta name="apple-mobile-web-app-title" content="{{ ward_name }} Cookbook">
   <link rel="manifest" href="{{ url_for('manifest') }}">
   {% endblock %}
-  <meta name="theme-color" content="{{ cookbook.accent_primary }}">
+  <meta name="theme-color" content="{{ cookbook.palette['terracotta'] }}">
 </head>
 <body>
   <header class="site-header">
