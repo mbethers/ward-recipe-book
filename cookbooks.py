@@ -112,7 +112,13 @@ COOKBOOKS = [
         slug="family",
         name="Bethers Family",
         hostnames=frozenset({"family-cookbook.bethers.dev"}),
-        palette={**_WARM_NEUTRALS, "terracotta": "#c47026", "terracotta-dark": "#8a4d18"},
+        # A few shades darker than the shared _WARM_NEUTRALS cream, and a
+        # 2px (vs. the default 1px) recipe-card border - both so a white
+        # recipe chip actually stands out against the page background,
+        # rather than nearly blending into it. UW keeps the lighter shared
+        # cream/1px border for now; if this reads well, do the same there.
+        palette={**_WARM_NEUTRALS, "terracotta": "#c47026", "terracotta-dark": "#8a4d18",
+                 "cream": "#f0e4cd", "card-border-width": "2px"},
         icon_dir="family/",
         admin_password_env="ADMIN_PASSWORD_FAMILY",
         allow_submissions=True,

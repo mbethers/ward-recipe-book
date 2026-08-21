@@ -17,6 +17,7 @@
   --on-accent: #fff;
   --radius: 14px;
   --max-width: 720px;
+  --card-border-width: 1px;
 }
 
 * { box-sizing: border-box; }
@@ -235,7 +236,7 @@ h2 { font-size: 1.1rem; margin: 20px 0 8px; }
 }
 .recipe-card {
   background: var(--paper);
-  border: 1px solid var(--border);
+  border: var(--card-border-width) solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
   color: var(--ink);
