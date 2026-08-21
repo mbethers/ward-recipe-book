@@ -39,6 +39,15 @@ class Cookbook:
     allow_reviews: bool       # star ratings/comments on existing recipes
     footer_tagline: str
     header_subtitle: str = ""  # shown under the name in the header, e.g. D1's compile credit
+    header_title_lines: tuple = None  # forces a specific line break in the header title, e.g. D1's "...Ward" / "Family Cookbook"
+
+    @property
+    def title_lines(self):
+        """The header title, split into the lines it should actually break
+        on. Defaults to one line ("{name} Cookbook") unless a cookbook
+        overrides header_title_lines to force a break at a specific word
+        rather than wherever the browser happens to wrap it."""
+        return self.header_title_lines or (f"{self.name} Cookbook",)
 
 
 # UW and Family share these neutrals (warm paper/ink) and differ only in
@@ -95,6 +104,7 @@ COOKBOOKS = [
         allow_reviews=False,
         footer_tagline="Mark Bethers and his buddy Claude Code are to blame for this app",
         header_subtitle="Compiled May 2024 by Kendra Johnson",
+        header_title_lines=("Durham 1st Ward", "Family Cookbook"),
     ),
     Cookbook(
         slug="family",
