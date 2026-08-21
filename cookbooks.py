@@ -68,7 +68,11 @@ COOKBOOKS = [
         slug="uw",
         name="University Ward",
         hostnames=frozenset({"uw-cookbook.bethers.dev"}),
-        palette={**_WARM_NEUTRALS, "terracotta": "#c1613f", "terracotta-dark": "#a34f31"},
+        # Darker cream + darker border + thicker (2px) recipe-card border,
+        # same treatment as Family below, applied here after confirming it
+        # read well there.
+        palette={**_WARM_NEUTRALS, "terracotta": "#c1613f", "terracotta-dark": "#a34f31",
+                 "cream": "#f0e4cd", "border": "#c9b48c", "card-border-width": "2px"},
         icon_dir="",
         admin_password_env="ADMIN_PASSWORD_UW",
         allow_submissions=True,
@@ -118,10 +122,9 @@ COOKBOOKS = [
         # rather than nearly blending into it. The shared --border tan
         # (#e8ddcb) sits too close in lightness to the new darker cream to
         # actually read as a visible line at any width, so it's darkened
-        # here too, just for Family - the 2px card border was genuinely
-        # invisible against the page until this was added. UW keeps the
-        # lighter shared cream/border/1px card border for now; if this
-        # reads well, do the same there.
+        # here too - the 2px card border was genuinely invisible against
+        # the page until this was added. UW now uses this same treatment
+        # (see its own palette above); D1 keeps its own distinct look.
         palette={**_WARM_NEUTRALS, "terracotta": "#c47026", "terracotta-dark": "#8a4d18",
                  "cream": "#f0e4cd", "border": "#c9b48c", "card-border-width": "2px"},
         icon_dir="family/",
