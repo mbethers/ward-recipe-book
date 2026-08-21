@@ -413,12 +413,41 @@ body = r.get_data(as_text=True)
 check("lists all 3 cookbooks", all(n in body for n in ("University Ward", "Durham 1st Ward", "Bethers Family")))
 check("tiles ordered Family, UW, D1",
       body.index("Bethers Family") < body.index("University Ward") < body.index("Durham 1st Ward"))
-check("links to each cookbook's own /admin/login",
-      "https://uw-cookbook.bethers.dev/admin/login" in body
-      and "https://d1-cookbook.bethers.dev/admin/login" in body
-      and "https://family-cookbook.bethers.dev/admin/login" in body)
+check("tiles link through the handoff route, not straight to /admin/login",
+      "/superadmin/enter/uw" in body
+      and "/superadmin/enter/d1" in body
+      and "/superadmin/enter/family" in body)
 check("tiles use the regular icon, not the admin (bishop-badge) one",
       "admin-icon-512.png" not in body and "icon-512.png" in body)
+
+print("\nSuperadmin -> per-cookbook admin handoff (no second password):\n")
+r = client.get("/superadmin/enter/uw", headers=SUPERADMIN_HOST)
+check("authenticated handoff redirects to the target cookbook's own domain",
+      r.status_code in (302, 303) and r.headers.get("Location", "").startswith("https://uw-cookbook.bethers.dev/admin/auto-login?token="),
+      r.headers.get("Location", ""))
+token = r.headers["Location"].split("token=", 1)[1]
+
+r = client.get(f"/admin/auto-login?token={token}", headers={"Host": "uw-cookbook.bethers.dev"})
+check("valid token on its own cookbook logs straight in (no password)",
+      r.status_code in (302, 303) and r.headers.get("Location", "").endswith("/admin/queue"), str(r.status_code))
+
+del os.environ["FORCE_COOKBOOK"]  # let the Host header drive resolution for this one check
+r = client.get(f"/admin/auto-login?token={token}", headers={"Host": "d1-cookbook.bethers.dev"})
+check("same token replayed on a DIFFERENT cookbook is rejected", r.status_code == 403, str(r.status_code))
+os.environ["FORCE_COOKBOOK"] = "uw"  # restore
+
+r = client.get("/admin/auto-login?token=garbage", headers={"Host": "uw-cookbook.bethers.dev"})
+check("garbage token is rejected", r.status_code == 403, str(r.status_code))
+
+# session_transaction() writes to the test client's default-domain cookie, not
+# the admin.bethers.dev-scoped one this suite has been using via the Host
+# header override, so it can't reach the session that matters here - use the
+# real /superadmin/logout route instead, same as a browser would.
+client.get("/superadmin/logout", headers=SUPERADMIN_HOST)
+r = client.get("/superadmin/enter/uw", headers=SUPERADMIN_HOST)
+check("handoff without a SuperAdmin session redirects to superadmin login (not straight to the token mint)",
+      r.status_code in (302, 303) and r.headers.get("Location", "").endswith("/superadmin/login"), str(r.status_code))
+client.post("/superadmin/login", data={"password": "superpass"}, headers=SUPERADMIN_HOST)  # log back in for the rest of the suite
 
 r = client.get("/superadmin-manifest.webmanifest", headers=SUPERADMIN_HOST)
 check("admin.bethers.dev manifest 200 (no login needed)", r.status_code == 200, str(r.status_code))

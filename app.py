@@ -18,6 +18,7 @@ except ImportError:
 
 from flask import Flask, Response, abort, flash, g, redirect, render_template, request, session, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 import psycopg
 
 import cookbooks
@@ -57,9 +58,19 @@ _SUPERADMIN_PATHS = {
     "/superadmin", "/superadmin/login", "/superadmin/logout",
     "/superadmin-manifest.webmanifest",
 }
+_SUPERADMIN_PATH_PREFIXES = ("/superadmin/enter/",)
 # Landing-page tile order, chosen deliberately rather than left as
 # cookbooks.COOKBOOKS' definition order.
 SUPERADMIN_ORDER = ("family", "uw", "d1")
+
+# Signs the short-lived handoff token that lets an already-authenticated
+# SuperAdmin session into one specific cookbook's admin console without a
+# second password prompt - see superadmin_enter()/admin_auto_login(). Keyed
+# on the same secret as the session cookie; a distinct salt just keeps this
+# token's signature namespace separate from anything else that might reuse
+# the same serializer pattern later.
+_handoff_serializer = URLSafeTimedSerializer(app.secret_key, salt="superadmin-handoff")
+HANDOFF_MAX_AGE_SECONDS = 60
 
 
 @app.before_request
@@ -77,7 +88,9 @@ def _resolve_cookbook():
     cookbook's data, so it gets g.cookbook = None instead of a real one."""
     host = (request.host or "").split(":")[0].strip().lower()
     if host == SUPERADMIN_HOSTNAME:
-        if request.path in _SUPERADMIN_PATHS or request.path.startswith("/static/"):
+        if (request.path in _SUPERADMIN_PATHS
+                or request.path.startswith(_SUPERADMIN_PATH_PREFIXES)
+                or request.path.startswith("/static/")):
             g.cookbook = None
             return
         abort(404)
@@ -1048,6 +1061,28 @@ def superadmin_launcher():
     return render_template("superadmin.html", cookbook_list=ordered)
 
 
+@app.route("/superadmin/enter/<slug>")
+def superadmin_enter(slug):
+    """What a tile actually links to now, instead of straight to that
+    cookbook's /admin/login: mints a signed, 60-second, single-cookbook
+    handoff token and redirects to that cookbook's own domain to redeem it
+    (admin_auto_login() below). Only reachable from an already-authenticated
+    SuperAdmin session - this is a deliberate, narrow trust handoff (you
+    already proved who you are once), not a second password prompt, and
+    not a general SSO between the cookbooks' own /admin/login pages, which
+    still work exactly as before for anyone who lands there directly."""
+    if g.cookbook is not None:
+        abort(404)
+    if not session.get("superadmin_authed"):
+        return redirect(url_for("superadmin_login"))
+    cb = cookbooks.BY_SLUG.get(slug)
+    if cb is None:
+        abort(404)
+    token = _handoff_serializer.dumps(slug)
+    target_host = next(iter(cb.hostnames))
+    return redirect(f"https://{target_host}/admin/auto-login?token={token}")
+
+
 @app.route("/superadmin-manifest.webmanifest")
 def superadmin_manifest():
     if g.cookbook is not None:
@@ -1099,6 +1134,26 @@ def admin_login():
             return redirect(next_url)
         flash("Wrong password.")
     return render_template("admin_login.html")
+
+
+@app.route("/admin/auto-login")
+def admin_auto_login():
+    """Redeems a handoff token minted by superadmin_enter() on
+    admin.bethers.dev - logs straight into this cookbook's admin session
+    without asking for this cookbook's own password. Not reachable any
+    other way: the token is signed, expires in 60 seconds, and is checked
+    against this exact cookbook's slug, so a token minted for one cookbook
+    can't be replayed against another, and a stale/copied link stops
+    working almost immediately."""
+    token = request.args.get("token", "")
+    try:
+        slug = _handoff_serializer.loads(token, max_age=HANDOFF_MAX_AGE_SECONDS)
+    except (BadSignature, SignatureExpired):
+        abort(403)
+    if slug != g.cookbook.slug:
+        abort(403)
+    session["admin_cookbook"] = g.cookbook.slug
+    return redirect(url_for("admin_queue"))
 
 
 @app.route("/admin/logout")

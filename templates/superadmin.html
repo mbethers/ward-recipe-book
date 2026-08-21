@@ -20,7 +20,7 @@
       color: #111;
       padding: 48px 20px;
     }
-    .mascot { display: block; width: 135px; height: 135px; border-radius: 30px; margin: 0 auto 20px; }
+    .mascot { display: block; width: 95px; height: 95px; border-radius: 21px; margin: 0 auto 20px; }
     h1 { text-align: center; font-size: 1.3rem; margin: 0 0 32px; }
     .grid {
       display: flex;
@@ -51,7 +51,7 @@
   <h1>Select a cookbook</h1>
   <div class="grid">
     {% for cb in cookbook_list %}
-      <a class="tile" href="https://{{ cb.hostnames|first }}/admin/login">
+      <a class="tile" href="{{ url_for('superadmin_enter', slug=cb.slug) }}">
         <img src="{{ url_for('static', filename=cb.icon_dir + 'icon-512.png') }}" alt="">
         <span class="tile-name">{{ cb.name }}</span>
       </a>
