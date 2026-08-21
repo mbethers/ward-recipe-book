@@ -20,6 +20,7 @@
       color: #111;
       padding: 48px 20px;
     }
+    .mascot { display: block; width: 216px; height: 216px; border-radius: 48px; margin: 0 auto 20px; }
     h1 { text-align: center; font-size: 1.3rem; margin: 0 0 32px; }
     .grid {
       display: flex;
@@ -46,6 +47,7 @@
   </style>
 </head>
 <body>
+  <img class="mascot" src="{{ url_for('static', filename='superadmin/icon-512.png') }}" alt="">
   <h1>Which cookbook?</h1>
   <div class="grid">
     {% for cb in cookbook_list %}
