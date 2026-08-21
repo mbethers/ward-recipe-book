@@ -379,6 +379,31 @@ for slug, password in (("d1", "d1pass"), ("family", "familypass")):
 
 os.environ["FORCE_COOKBOOK"] = "uw"  # restore, in case anything runs after this file
 
+# ======================================================= superadmin launcher ==
+# admin.bethers.dev is a special Host, not a real cookbook - g.cookbook is
+# None there, and FORCE_COOKBOOK doesn't apply since the gate checks
+# request.host directly rather than going through cookbooks.resolve_cookbook().
+
+print("\nSuperadmin launcher:\n")
+r = client.get("/superadmin", headers={"Host": "admin.bethers.dev"})
+check("admin.bethers.dev /superadmin 200", r.status_code == 200, str(r.status_code))
+body = r.get_data(as_text=True)
+check("lists all 3 cookbooks", all(n in body for n in ("University Ward", "Durham 1st Ward", "Bethers Family")))
+check("links to each cookbook's own /admin/login",
+      "https://uw-cookbook.bethers.dev/admin/login" in body
+      and "https://d1-cookbook.bethers.dev/admin/login" in body
+      and "https://family-cookbook.bethers.dev/admin/login" in body)
+
+r = client.get("/superadmin-manifest.webmanifest", headers={"Host": "admin.bethers.dev"})
+check("admin.bethers.dev manifest 200", r.status_code == 200, str(r.status_code))
+
+for host in ("uw-cookbook.bethers.dev", "d1-cookbook.bethers.dev", "family-cookbook.bethers.dev"):
+    r = client.get("/superadmin", headers={"Host": host})
+    check(f"{host} /superadmin 404 (launcher is admin.bethers.dev-only)", r.status_code == 404, str(r.status_code))
+
+r = client.get("/", headers={"Host": "admin.bethers.dev"})
+check("admin.bethers.dev / 404 (only the launcher paths are allowed)", r.status_code == 404, str(r.status_code))
+
 print("\n" + "=" * 64)
 print(f"{len(fails)} FAILURE(S): {fails}" if fails else "ALL CHECKS PASSED")
 sys.exit(1 if fails else 0)

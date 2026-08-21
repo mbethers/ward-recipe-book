@@ -49,6 +49,13 @@ with app.app_context():
 
 # ---------------------------------------------------------------- helpers --
 
+SUPERADMIN_HOSTNAME = "admin.bethers.dev"
+# Only these paths are reachable on that host - everything else 404s rather
+# than running with g.cookbook = None, which every other route assumes is a
+# real Cookbook. /static/* stays open so the launcher's own icons load.
+_SUPERADMIN_PATHS = {"/superadmin", "/superadmin-manifest.webmanifest"}
+
+
 @app.before_request
 def _resolve_cookbook():
     """Picks which of the three cookbooks this request is for, based on the
@@ -57,7 +64,18 @@ def _resolve_cookbook():
     starts. An unrecognized Host (typo, or this service's own onrender.com
     default hostname, deliberately left unmapped) 404s rather than falling
     back to any one cookbook - a fallback here would be a way to see one
-    cookbook's real data through an unbranded backdoor URL."""
+    cookbook's real data through an unbranded backdoor URL.
+
+    The one exception is admin.bethers.dev, the cross-cookbook admin
+    launcher (see superadmin_launcher() below) - it isn't tied to any one
+    cookbook's data, so it gets g.cookbook = None instead of a real one."""
+    host = (request.host or "").split(":")[0].strip().lower()
+    if host == SUPERADMIN_HOSTNAME:
+        if request.path in _SUPERADMIN_PATHS or request.path.startswith("/static/"):
+            g.cookbook = None
+            return
+        abort(404)
+
     cookbook = cookbooks.resolve_cookbook(request.host)
     if cookbook is None:
         app.logger.warning("Unrecognized Host header: %s", request.host)
@@ -287,6 +305,8 @@ def _run_proofreading(name: str, ingredients: str, instructions: str, story: str
 
 @app.context_processor
 def inject_globals():
+    if g.cookbook is None:  # admin.bethers.dev - see _resolve_cookbook()
+        return {}
     return {
         "ward_name": g.cookbook.name,
         "cookbook": g.cookbook,
@@ -978,6 +998,42 @@ def manifest():
 @app.route("/admin-manifest.webmanifest")
 def admin_manifest():
     return _manifest_response("Cookbook Admin", "Admin", "/admin/login", icon_prefix="admin-")
+
+
+@app.route("/superadmin")
+def superadmin_launcher():
+    """Cross-cookbook admin launcher, lives at admin.bethers.dev (see
+    _resolve_cookbook()) - one tile per cookbook, each linking straight to
+    that cookbook's own /admin/login on its own domain. No login of its
+    own: it shows nothing sensitive, just which cookbooks exist and where
+    their (still individually password-gated) admin consoles are.
+
+    Flask's routing doesn't know about Host - /superadmin would otherwise
+    also resolve on any of the three cookbook domains, since none of them
+    hit the 404 branch in _resolve_cookbook(). g.cookbook is only ever None
+    on admin.bethers.dev, so that's the actual host gate."""
+    if g.cookbook is not None:
+        abort(404)
+    return render_template("superadmin.html", cookbook_list=cookbooks.COOKBOOKS)
+
+
+@app.route("/superadmin-manifest.webmanifest")
+def superadmin_manifest():
+    if g.cookbook is not None:
+        abort(404)
+    manifest = {
+        "name": "Cookbooks Admin",
+        "short_name": "Admin",
+        "start_url": "/superadmin",
+        "display": "standalone",
+        "background_color": "#ffffff",
+        "theme_color": "#000000",
+        "icons": [
+            {"src": url_for("static", filename="superadmin/icon-192.png"), "sizes": "192x192", "type": "image/png"},
+            {"src": url_for("static", filename="superadmin/icon-512.png"), "sizes": "512x512", "type": "image/png"},
+        ],
+    }
+    return Response(json.dumps(manifest), mimetype="application/manifest+json")
 
 
 def _store_dish_photo(file_storage) -> str | None:
