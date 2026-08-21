@@ -42,6 +42,7 @@
     .tile:active { background: #f7f7f7; }
     .tile img { width: 60px; height: 60px; border-radius: 14px; display: block; flex-shrink: 0; }
     .tile-name { font-weight: 700; font-size: 1.05rem; }
+    .logout { display: block; text-align: center; margin: 28px auto 0; color: #888; font-size: 0.85rem; text-decoration: none; }
   </style>
 </head>
 <body>
@@ -49,10 +50,11 @@
   <div class="grid">
     {% for cb in cookbook_list %}
       <a class="tile" href="https://{{ cb.hostnames|first }}/admin/login">
-        <img src="{{ url_for('static', filename=cb.icon_dir + 'admin-icon-512.png') }}" alt="">
+        <img src="{{ url_for('static', filename=cb.icon_dir + 'icon-512.png') }}" alt="">
         <span class="tile-name">{{ cb.name }}</span>
       </a>
     {% endfor %}
   </div>
+  <a class="logout" href="{{ url_for('superadmin_logout') }}">Log out</a>
 </body>
 </html>

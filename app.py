@@ -53,7 +53,13 @@ SUPERADMIN_HOSTNAME = "admin.bethers.dev"
 # Only these paths are reachable on that host - everything else 404s rather
 # than running with g.cookbook = None, which every other route assumes is a
 # real Cookbook. /static/* stays open so the launcher's own icons load.
-_SUPERADMIN_PATHS = {"/superadmin", "/superadmin-manifest.webmanifest"}
+_SUPERADMIN_PATHS = {
+    "/superadmin", "/superadmin/login", "/superadmin/logout",
+    "/superadmin-manifest.webmanifest",
+}
+# Landing-page tile order, chosen deliberately rather than left as
+# cookbooks.COOKBOOKS' definition order.
+SUPERADMIN_ORDER = ("family", "uw", "d1")
 
 
 @app.before_request
@@ -1000,13 +1006,35 @@ def admin_manifest():
     return _manifest_response("Cookbook Admin", "Admin", "/admin/login", icon_prefix="admin-")
 
 
+@app.route("/superadmin/login", methods=["GET", "POST"])
+def superadmin_login():
+    if g.cookbook is not None:
+        abort(404)
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        expected = os.environ.get("SUPERADMIN_PASSWORD", "")
+        if expected and password == expected:
+            session["superadmin_authed"] = True
+            return redirect(url_for("superadmin_launcher"))
+        flash("Wrong password.")
+    return render_template("superadmin_login.html")
+
+
+@app.route("/superadmin/logout")
+def superadmin_logout():
+    if g.cookbook is not None:
+        abort(404)
+    session.pop("superadmin_authed", None)
+    return redirect(url_for("superadmin_login"))
+
+
 @app.route("/superadmin")
 def superadmin_launcher():
     """Cross-cookbook admin launcher, lives at admin.bethers.dev (see
     _resolve_cookbook()) - one tile per cookbook, each linking straight to
-    that cookbook's own /admin/login on its own domain. No login of its
-    own: it shows nothing sensitive, just which cookbooks exist and where
-    their (still individually password-gated) admin consoles are.
+    that cookbook's own /admin/login on its own domain. Gated by its own
+    SUPERADMIN_PASSWORD (separate from all three cookbooks' passwords) -
+    the login step comes before this landing page, not after.
 
     Flask's routing doesn't know about Host - /superadmin would otherwise
     also resolve on any of the three cookbook domains, since none of them
@@ -1014,7 +1042,10 @@ def superadmin_launcher():
     on admin.bethers.dev, so that's the actual host gate."""
     if g.cookbook is not None:
         abort(404)
-    return render_template("superadmin.html", cookbook_list=cookbooks.COOKBOOKS)
+    if not session.get("superadmin_authed"):
+        return redirect(url_for("superadmin_login"))
+    ordered = [cookbooks.BY_SLUG[slug] for slug in SUPERADMIN_ORDER]
+    return render_template("superadmin.html", cookbook_list=ordered)
 
 
 @app.route("/superadmin-manifest.webmanifest")

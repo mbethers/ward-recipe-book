@@ -15,6 +15,8 @@ services:
         sync: false
       - key: ADMIN_PASSWORD_FAMILY
         sync: false
+      - key: SUPERADMIN_PASSWORD
+        sync: false
       - key: FLASK_SECRET_KEY
         generateValue: true
       - key: ANTHROPIC_API_KEY

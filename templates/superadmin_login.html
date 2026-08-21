@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cookbooks Admin</title>
+  <link rel="manifest" href="{{ url_for('superadmin_manifest') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='superadmin/apple-touch-icon.png') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='superadmin/favicon-32.png') }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='superadmin/favicon-16.png') }}">
+  <meta name="apple-mobile-web-app-title" content="Cookbooks Admin">
+  <meta name="theme-color" content="#0b3587">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f2f2f2;
+      color: #111;
+      padding: 20px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 28px 24px;
+      width: 100%;
+      max-width: 320px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+      text-align: center;
+    }
+    img { width: 72px; height: 72px; border-radius: 16px; margin-bottom: 12px; }
+    h1 { font-size: 1.15rem; margin: 0 0 20px; }
+    label { display: block; text-align: left; font-weight: 600; font-size: 0.9rem; margin-bottom: 16px; }
+    input[type="password"] {
+      display: block;
+      width: 100%;
+      margin-top: 4px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #ddd;
+      font-size: 1rem;
+      font-family: inherit;
+    }
+    button {
+      width: 100%;
+      padding: 12px 20px;
+      border-radius: 999px;
+      border: none;
+      background: #0b3587;
+      color: #fff;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .flash { background: #fee; border: 1px solid #fcc; color: #a33; padding: 8px 12px; border-radius: 8px; margin-bottom: 16px; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img src="{{ url_for('static', filename='superadmin/icon-512.png') }}" alt="">
+    <h1>Cookbooks Admin</h1>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for message in messages %}
+          <div class="flash">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    <form method="post">
+      <label>Password
+        <input type="password" name="password" autofocus required>
+      </label>
+      <button type="submit">Log in</button>
+    </form>
+  </div>
+</body>
+</html>

@@ -385,23 +385,51 @@ os.environ["FORCE_COOKBOOK"] = "uw"  # restore, in case anything runs after this
 # request.host directly rather than going through cookbooks.resolve_cookbook().
 
 print("\nSuperadmin launcher:\n")
-r = client.get("/superadmin", headers={"Host": "admin.bethers.dev"})
-check("admin.bethers.dev /superadmin 200", r.status_code == 200, str(r.status_code))
+SUPERADMIN_HOST = {"Host": "admin.bethers.dev"}
+os.environ["SUPERADMIN_PASSWORD"] = "superpass"
+
+with client.session_transaction() as sess:
+    sess.pop("superadmin_authed", None)
+
+r = client.get("/superadmin", headers=SUPERADMIN_HOST)
+check("unauthenticated /superadmin redirects to login",
+      r.status_code in (302, 303) and "/superadmin/login" in r.headers.get("Location", ""), str(r.status_code))
+
+r = client.post("/superadmin/login", data={"password": "wrong"}, headers=SUPERADMIN_HOST)
+check("wrong password rejected", b"Wrong password" in r.get_data())
+
+r = client.post("/superadmin/login", data={"password": "superpass"}, headers=SUPERADMIN_HOST)
+check("correct password redirects to launcher",
+      r.status_code in (302, 303) and r.headers.get("Location", "").endswith("/superadmin"))
+
+r = client.get("/superadmin", headers=SUPERADMIN_HOST)
+check("authenticated admin.bethers.dev /superadmin 200", r.status_code == 200, str(r.status_code))
 body = r.get_data(as_text=True)
 check("lists all 3 cookbooks", all(n in body for n in ("University Ward", "Durham 1st Ward", "Bethers Family")))
+check("tiles ordered Family, UW, D1",
+      body.index("Bethers Family") < body.index("University Ward") < body.index("Durham 1st Ward"))
 check("links to each cookbook's own /admin/login",
       "https://uw-cookbook.bethers.dev/admin/login" in body
       and "https://d1-cookbook.bethers.dev/admin/login" in body
       and "https://family-cookbook.bethers.dev/admin/login" in body)
+check("tiles use the regular icon, not the admin (bishop-badge) one",
+      "admin-icon-512.png" not in body and "icon-512.png" in body)
 
-r = client.get("/superadmin-manifest.webmanifest", headers={"Host": "admin.bethers.dev"})
-check("admin.bethers.dev manifest 200", r.status_code == 200, str(r.status_code))
+r = client.get("/superadmin-manifest.webmanifest", headers=SUPERADMIN_HOST)
+check("admin.bethers.dev manifest 200 (no login needed)", r.status_code == 200, str(r.status_code))
+
+r = client.get("/superadmin/logout", headers=SUPERADMIN_HOST)
+check("logout redirects to login page",
+      r.status_code in (302, 303) and r.headers.get("Location", "").endswith("/superadmin/login"))
+r = client.get("/superadmin", headers=SUPERADMIN_HOST)
+check("logged out -> /superadmin redirects to login again",
+      r.status_code in (302, 303) and "/superadmin/login" in r.headers.get("Location", ""))
 
 for host in ("uw-cookbook.bethers.dev", "d1-cookbook.bethers.dev", "family-cookbook.bethers.dev"):
     r = client.get("/superadmin", headers={"Host": host})
     check(f"{host} /superadmin 404 (launcher is admin.bethers.dev-only)", r.status_code == 404, str(r.status_code))
 
-r = client.get("/", headers={"Host": "admin.bethers.dev"})
+r = client.get("/", headers=SUPERADMIN_HOST)
 check("admin.bethers.dev / 404 (only the launcher paths are allowed)", r.status_code == 404, str(r.status_code))
 
 print("\n" + "=" * 64)
