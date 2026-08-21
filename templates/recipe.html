@@ -51,11 +51,14 @@
 
   <div class="recipe-actions no-print">
     <button class="print-btn" onclick="window.print()">🖨️ Print / save this recipe</button>
-    <a class="suggest-link" href="{{ url_for('suggest_edit_form', recipe_id=recipe.id) }}">
-      ✏️ Suggest a correction
-    </a>
+    {% if cookbook.allow_submissions %}
+      <a class="suggest-link" href="{{ url_for('suggest_edit_form', recipe_id=recipe.id) }}">
+        ✏️ Suggest a correction
+      </a>
+    {% endif %}
   </div>
 
+  {% if dish_photos or cookbook.allow_submissions %}
   <section id="photos" class="reviews-section no-print">
     <h2>Photos from ward members</h2>
 
@@ -66,7 +69,7 @@
             <img src="{{ p.photo_path }}" alt="{{ recipe.name }}, made by {{ p.uploader_name }}">
             <p class="photo-gallery-caption">
               by {{ p.uploader_name }}
-              {% if session.is_admin %}
+              {% if is_admin %}
                 <form method="post" action="{{ url_for('admin_photo_delete', photo_id=p.id) }}"
                       onsubmit="return confirm('Remove this photo?');" class="review-admin-delete">
                   <button type="submit" class="link-btn">🗑️</button>
@@ -76,24 +79,28 @@
           </div>
         {% endfor %}
       </div>
-    {% else %}
+    {% elif cookbook.allow_submissions %}
       <p class="muted">No photos yet - be the first to share how yours turned out!</p>
     {% endif %}
 
-    <h3>Made this? Share a photo</h3>
-    <form method="post" action="{{ url_for('submit_dish_photo', recipe_id=recipe.id) }}"
-          enctype="multipart/form-data" class="review-form">
-      <label>Your name
-        <input type="text" name="uploader_name" required>
-      </label>
-      <label>Photo of your dish
-        <input type="file" name="photo" accept="image/*" required>
-      </label>
-      <button type="submit" id="photo-upload-btn" class="secondary-btn">Upload photo</button>
-      <p class="hint">An admin reviews every photo before it appears here.</p>
-    </form>
+    {% if cookbook.allow_submissions %}
+      <h3>Made this? Share a photo</h3>
+      <form method="post" action="{{ url_for('submit_dish_photo', recipe_id=recipe.id) }}"
+            enctype="multipart/form-data" class="review-form">
+        <label>Your name
+          <input type="text" name="uploader_name" required>
+        </label>
+        <label>Photo of your dish
+          <input type="file" name="photo" accept="image/*" required>
+        </label>
+        <button type="submit" id="photo-upload-btn" class="secondary-btn">Upload photo</button>
+        <p class="hint">An admin reviews every photo before it appears here.</p>
+      </form>
+    {% endif %}
   </section>
+  {% endif %}
 
+  {% if reviews or cookbook.allow_reviews %}
   <section id="reviews" class="reviews-section no-print">
     <h2>Ratings &amp; reviews</h2>
 
@@ -104,7 +111,7 @@
             <span class="star-display" aria-label="{{ rv.rating }} out of 5 stars">{% for i in range(1,6) %}{{ '★' if i <= rv.rating else '☆' }}{% endfor %}</span>
             <strong>{{ rv.reviewer_name }}</strong>
             {% if rv.comment %}<p>{{ rv.comment }}</p>{% endif %}
-            {% if session.is_admin %}
+            {% if is_admin %}
               <form method="post" action="{{ url_for('admin_review_delete', review_id=rv.id) }}"
                     onsubmit="return confirm('Delete this review?');" class="review-admin-delete">
                 <button type="submit" class="link-btn">🗑️ Delete</button>
@@ -113,28 +120,31 @@
           </li>
         {% endfor %}
       </ul>
-    {% else %}
+    {% elif cookbook.allow_reviews %}
       <p class="muted">No reviews yet - be the first to make this and share what you thought!</p>
     {% endif %}
 
-    <h3>Made this? Leave a rating</h3>
-    <form method="post" action="{{ url_for('submit_review', recipe_id=recipe.id) }}" class="review-form">
-      <div class="star-input">
-        <input type="radio" id="star5" name="rating" value="5" required><label for="star5" title="5 stars">★</label>
-        <input type="radio" id="star4" name="rating" value="4"><label for="star4" title="4 stars">★</label>
-        <input type="radio" id="star3" name="rating" value="3"><label for="star3" title="3 stars">★</label>
-        <input type="radio" id="star2" name="rating" value="2"><label for="star2" title="2 stars">★</label>
-        <input type="radio" id="star1" name="rating" value="1"><label for="star1" title="1 star">★</label>
-      </div>
-      <label>Your name
-        <input type="text" name="reviewer_name" required>
-      </label>
-      <label>Comment <span class="hint">(optional)</span>
-        <textarea name="comment" rows="3" placeholder="How did it turn out? Any tweaks you made?"></textarea>
-      </label>
-      <button type="submit" class="secondary-btn">Submit rating</button>
-    </form>
+    {% if cookbook.allow_reviews %}
+      <h3>Made this? Leave a rating</h3>
+      <form method="post" action="{{ url_for('submit_review', recipe_id=recipe.id) }}" class="review-form">
+        <div class="star-input">
+          <input type="radio" id="star5" name="rating" value="5" required><label for="star5" title="5 stars">★</label>
+          <input type="radio" id="star4" name="rating" value="4"><label for="star4" title="4 stars">★</label>
+          <input type="radio" id="star3" name="rating" value="3"><label for="star3" title="3 stars">★</label>
+          <input type="radio" id="star2" name="rating" value="2"><label for="star2" title="2 stars">★</label>
+          <input type="radio" id="star1" name="rating" value="1"><label for="star1" title="1 star">★</label>
+        </div>
+        <label>Your name
+          <input type="text" name="reviewer_name" required>
+        </label>
+        <label>Comment <span class="hint">(optional)</span>
+          <textarea name="comment" rows="3" placeholder="How did it turn out? Any tweaks you made?"></textarea>
+        </label>
+        <button type="submit" class="secondary-btn">Submit rating</button>
+      </form>
+    {% endif %}
   </section>
+  {% endif %}
 </article>
 
 <script src="{{ url_for('static', filename='app.js') }}"></script>

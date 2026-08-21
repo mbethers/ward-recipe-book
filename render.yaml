@@ -6,9 +6,14 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app --workers 2 --timeout 120
     envVars:
-      - key: WARD_NAME
-        value: University Ward
-      - key: ADMIN_PASSWORD
+      # Cookbook branding (name, accent colors, icons) is resolved per-request
+      # from the domain in cookbooks.py, not from an env var - this one
+      # service now answers for all three cookbooks' custom domains.
+      - key: ADMIN_PASSWORD_UW
+        sync: false
+      - key: ADMIN_PASSWORD_D1
+        sync: false
+      - key: ADMIN_PASSWORD_FAMILY
         sync: false
       - key: FLASK_SECRET_KEY
         generateValue: true

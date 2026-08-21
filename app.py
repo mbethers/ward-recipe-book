@@ -16,10 +16,11 @@ try:
 except ImportError:
     pass
 
-from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
+from flask import Flask, Response, abort, flash, g, redirect, render_template, request, session, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
 import psycopg
 
+import cookbooks
 import db
 from ai_parse import ParseError, parse_recipe, parse_recipe_multi, proofread_recipe, propose_recipe_fix, apply_recipe_fix_choice
 import image_utils
@@ -41,9 +42,6 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 db.register(app)
 
-WARD_NAME = os.environ.get("WARD_NAME", "University Ward")
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
-
 
 with app.app_context():
     db.init_db()
@@ -51,10 +49,26 @@ with app.app_context():
 
 # ---------------------------------------------------------------- helpers --
 
+@app.before_request
+def _resolve_cookbook():
+    """Picks which of the three cookbooks this request is for, based on the
+    Host header - see cookbooks.py. Runs before every route, including
+    static file serving, so g.cookbook is always available once a route body
+    starts. An unrecognized Host (typo, or this service's own onrender.com
+    default hostname, deliberately left unmapped) 404s rather than falling
+    back to any one cookbook - a fallback here would be a way to see one
+    cookbook's real data through an unbranded backdoor URL."""
+    cookbook = cookbooks.resolve_cookbook(request.host)
+    if cookbook is None:
+        app.logger.warning("Unrecognized Host header: %s", request.host)
+        abort(404)
+    g.cookbook = cookbook
+
+
 def admin_required(view):
     @functools.wraps(view)
     def wrapped(*args, **kwargs):
-        if not session.get("is_admin"):
+        if session.get("admin_cookbook") != g.cookbook.slug:
             return redirect(url_for("admin_login", next=request.path))
         return view(*args, **kwargs)
     return wrapped
@@ -62,9 +76,12 @@ def admin_required(view):
 
 def _notify_admin(subject: str, body: str) -> None:
     """Best-effort email to the admin - never lets a notification failure
-    affect the submission that triggered it."""
+    affect the submission that triggered it.
+
+    All three cookbooks' notifications land in one shared inbox, so the
+    cookbook name goes in the subject to say which site it's from."""
     try:
-        email_utils.send_admin_notification(subject, body)
+        email_utils.send_admin_notification(f"[{g.cookbook.name}] {subject}", body)
     except RuntimeError as exc:
         app.logger.warning("Admin notification email not sent: %s", exc)
 
@@ -270,7 +287,11 @@ def _run_proofreading(name: str, ingredients: str, instructions: str, story: str
 
 @app.context_processor
 def inject_globals():
-    return {"ward_name": WARD_NAME}
+    return {
+        "ward_name": g.cookbook.name,
+        "cookbook": g.cookbook,
+        "is_admin": session.get("admin_cookbook") == g.cookbook.slug,
+    }
 
 
 _BULLET_PREFIX = re.compile(r"^[•◦▪‣∙·*»]\s+|^[-–—]\s+")
@@ -328,12 +349,12 @@ def index():
                     COALESCE(AVG(rv.rating), 0)::float AS avg_rating,
                     COUNT(rv.id) AS review_count,
                     (SELECT dp.photo_path FROM dish_photos dp
-                     WHERE dp.recipe_id = r.id AND dp.status = 'published'
+                     WHERE dp.recipe_id = r.id AND dp.cookbook = r.cookbook AND dp.status = 'published'
                      ORDER BY dp.submitted_at ASC LIMIT 1) AS gallery_photo
              FROM recipes r
-             LEFT JOIN reviews rv ON rv.recipe_id = r.id
-             WHERE r.status = 'published'"""
-    params = []
+             LEFT JOIN reviews rv ON rv.recipe_id = r.id AND rv.cookbook = r.cookbook
+             WHERE r.status = 'published' AND r.cookbook = %s"""
+    params = [g.cookbook.slug]
     if q:
         sql += " AND (r.name ILIKE %s OR r.ingredients ILIKE %s OR r.submitter_name ILIKE %s)"
         like = f"%{q}%"
@@ -373,7 +394,7 @@ def index():
         q=q,
         active_category=category,
         active_cuisine=cuisine,
-        intro_text=db.get_setting("intro_text", db.DEFAULT_INTRO_TEXT),
+        intro_text=db.get_setting(g.cookbook.slug, "intro_text", ""),
     )
 
 
@@ -381,18 +402,20 @@ def index():
 def recipe_detail(recipe_id):
     conn = db.get_db()
     recipe = conn.execute(
-        "SELECT * FROM recipes WHERE id = %s AND status = 'published'", (recipe_id,)
+        "SELECT * FROM recipes WHERE id = %s AND cookbook = %s AND status = 'published'",
+        (recipe_id, g.cookbook.slug),
     ).fetchone()
     if not recipe:
         abort(404)
     reviews = conn.execute(
-        "SELECT * FROM reviews WHERE recipe_id = %s ORDER BY created_at DESC", (recipe_id,)
+        "SELECT * FROM reviews WHERE recipe_id = %s AND cookbook = %s ORDER BY created_at DESC",
+        (recipe_id, g.cookbook.slug),
     ).fetchall()
     avg_rating = sum(r["rating"] for r in reviews) / len(reviews) if reviews else 0
     dish_photos = conn.execute(
-        """SELECT * FROM dish_photos WHERE recipe_id = %s AND status = 'published'
+        """SELECT * FROM dish_photos WHERE recipe_id = %s AND cookbook = %s AND status = 'published'
            ORDER BY submitted_at ASC""",
-        (recipe_id,),
+        (recipe_id, g.cookbook.slug),
     ).fetchall()
     return render_template(
         "recipe.html", recipe=recipe, reviews=reviews, avg_rating=avg_rating, dish_photos=dish_photos
@@ -401,9 +424,12 @@ def recipe_detail(recipe_id):
 
 @app.route("/recipe/<int:recipe_id>/review", methods=["POST"])
 def submit_review(recipe_id):
+    if not g.cookbook.allow_reviews:
+        abort(404)
     conn = db.get_db()
     recipe = conn.execute(
-        "SELECT id FROM recipes WHERE id = %s AND status = 'published'", (recipe_id,)
+        "SELECT id FROM recipes WHERE id = %s AND cookbook = %s AND status = 'published'",
+        (recipe_id, g.cookbook.slug),
     ).fetchone()
     if not recipe:
         abort(404)
@@ -419,9 +445,10 @@ def submit_review(recipe_id):
         return redirect(url_for("recipe_detail", recipe_id=recipe_id) + "#reviews")
 
     conn.execute(
-        """INSERT INTO reviews (recipe_id, reviewer_name, rating, comment, created_at)
-           VALUES (%s, %s, %s, %s, %s)""",
-        (recipe_id, reviewer_name, rating, (request.form.get("comment") or "").strip(), db.now_iso()),
+        """INSERT INTO reviews (recipe_id, cookbook, reviewer_name, rating, comment, created_at)
+           VALUES (%s, %s, %s, %s, %s, %s)""",
+        (recipe_id, g.cookbook.slug, reviewer_name, rating,
+         (request.form.get("comment") or "").strip(), db.now_iso()),
     )
     conn.commit()
     flash("Thanks for your review!")
@@ -433,9 +460,12 @@ def submit_dish_photo(recipe_id):
     """A photo of the finished dish, independent of any review. Goes into the
     same pending -> admin-approved pipeline as recipes - nothing a visitor
     uploads appears publicly without an admin approving it first."""
+    if not g.cookbook.allow_submissions:
+        abort(404)
     conn = db.get_db()
     recipe = conn.execute(
-        "SELECT id FROM recipes WHERE id = %s AND status = 'published'", (recipe_id,)
+        "SELECT id FROM recipes WHERE id = %s AND cookbook = %s AND status = 'published'",
+        (recipe_id, g.cookbook.slug),
     ).fetchone()
     if not recipe:
         abort(404)
@@ -461,16 +491,18 @@ def submit_dish_photo(recipe_id):
         flash("Photo storage isn't set up yet - try again later.")
         return redirect(anchor)
     try:
-        photo_url = storage.upload_bytes(jpeg_bytes, "photo.jpg", "image/jpeg", "gallery")
+        photo_url = storage.upload_bytes(
+            jpeg_bytes, "photo.jpg", "image/jpeg", f"{g.cookbook.slug}/gallery"
+        )
     except RuntimeError as exc:
         app.logger.error("Supabase upload failed: %s", exc)
         flash("That photo couldn't be uploaded - please try again.")
         return redirect(anchor)
 
     conn.execute(
-        """INSERT INTO dish_photos (recipe_id, uploader_name, photo_path, status, submitted_at)
-           VALUES (%s, %s, %s, 'pending', %s)""",
-        (recipe_id, uploader_name, photo_url, db.now_iso()),
+        """INSERT INTO dish_photos (recipe_id, cookbook, uploader_name, photo_path, status, submitted_at)
+           VALUES (%s, %s, %s, %s, 'pending', %s)""",
+        (recipe_id, g.cookbook.slug, uploader_name, photo_url, db.now_iso()),
     )
     conn.commit()
     _notify_admin(
@@ -484,7 +516,8 @@ def submit_dish_photo(recipe_id):
 
 def _published_recipe_or_404(conn, recipe_id):
     recipe = conn.execute(
-        "SELECT * FROM recipes WHERE id = %s AND status = 'published'", (recipe_id,)
+        "SELECT * FROM recipes WHERE id = %s AND cookbook = %s AND status = 'published'",
+        (recipe_id, g.cookbook.slug),
     ).fetchone()
     if not recipe:
         abort(404)
@@ -493,6 +526,8 @@ def _published_recipe_or_404(conn, recipe_id):
 
 @app.route("/recipe/<int:recipe_id>/suggest", methods=["GET"])
 def suggest_edit_form(recipe_id):
+    if not g.cookbook.allow_submissions:
+        abort(404)
     conn = db.get_db()
     recipe = _published_recipe_or_404(conn, recipe_id)
     active_dietary = set(recipe["dietary_tags"].split(",")) if recipe["dietary_tags"] else set()
@@ -510,6 +545,8 @@ def suggest_edit_form(recipe_id):
 def suggest_edit(recipe_id):
     """Records a proposed correction. Writes nothing to the recipe itself -
     the published version only ever changes from admin_correction_approve."""
+    if not g.cookbook.allow_submissions:
+        abort(404)
     conn = db.get_db()
     recipe = _published_recipe_or_404(conn, recipe_id)
     back = url_for("suggest_edit_form", recipe_id=recipe_id)
@@ -530,8 +567,8 @@ def suggest_edit(recipe_id):
         return redirect(back)
 
     pending = conn.execute(
-        "SELECT COUNT(*) AS n FROM recipe_edits WHERE recipe_id = %s AND status = 'pending'",
-        (recipe_id,),
+        "SELECT COUNT(*) AS n FROM recipe_edits WHERE recipe_id = %s AND cookbook = %s AND status = 'pending'",
+        (recipe_id, g.cookbook.slug),
     ).fetchone()["n"]
     if pending >= MAX_PENDING_PER_RECIPE:
         flash("There are already several suggestions waiting on this recipe - "
@@ -545,9 +582,9 @@ def suggest_edit(recipe_id):
 
     conn.execute(
         """INSERT INTO recipe_edits
-           (recipe_id, suggester_name, note, proposed, base, status, submitted_at)
-           VALUES (%s, %s, %s, %s, %s, 'pending', %s)""",
-        (recipe_id, suggester_name, note,
+           (recipe_id, cookbook, suggester_name, note, proposed, base, status, submitted_at)
+           VALUES (%s, %s, %s, %s, %s, %s, 'pending', %s)""",
+        (recipe_id, g.cookbook.slug, suggester_name, note,
          json.dumps(proposed), json.dumps(base), db.now_iso()),
     )
     conn.commit()
@@ -565,6 +602,8 @@ def suggest_edit(recipe_id):
 
 @app.route("/submit", methods=["GET"])
 def submit_form():
+    if not g.cookbook.allow_submissions:
+        abort(404)
     return render_template(
         "submit.html", categories=db.CATEGORIES, cuisines=db.CUISINES, dietary_options=db.DIETARY_TAGS
     )
@@ -572,6 +611,8 @@ def submit_form():
 
 @app.route("/submit/text", methods=["POST"])
 def submit_text():
+    if not g.cookbook.allow_submissions:
+        abort(404)
     form = request.form
     name = (form.get("name") or "").strip()
     submitter_name = (form.get("submitter_name") or "").strip()
@@ -604,12 +645,13 @@ def submit_text():
     conn = db.get_db()
     new_id = conn.execute(
         """INSERT INTO recipes
-           (name, submitter_name, category, cuisine, dietary_tags, prep_time, servings,
+           (name, cookbook, submitter_name, category, cuisine, dietary_tags, prep_time, servings,
             ingredients, instructions, story, photo_path, status, submitted_at, proofreading_notes)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)
            RETURNING id""",
         (
             name,
+            g.cookbook.slug,
             submitter_name,
             category,
             cuisine,
@@ -635,6 +677,8 @@ def submit_text():
 
 @app.route("/submit/photo", methods=["POST"])
 def submit_photo():
+    if not g.cookbook.allow_submissions:
+        abort(404)
     form = request.form
     submitter_name = (form.get("submitter_name") or "").strip()
     uploads = request.files.getlist("source_files")
@@ -678,7 +722,7 @@ def submit_photo():
         if storage.storage_configured():
             try:
                 source_image_path = storage.upload_bytes(
-                    store_bytes, f"source{store_ext}", store_content_type, "sources"
+                    store_bytes, f"source{store_ext}", store_content_type, f"{g.cookbook.slug}/sources"
                 )
                 source_image_paths.append(source_image_path)
             except RuntimeError as exc:
@@ -726,6 +770,8 @@ def submit_photo_confirm():
     """Takes the (possibly hand-edited) fields from the review screen after
     a photo/PDF upload and actually creates the pending submission - the
     upload/parse already happened in submit_photo() above."""
+    if not g.cookbook.allow_submissions:
+        abort(404)
     form = request.form
     name = (form.get("name") or "").strip()
     submitter_name = (form.get("submitter_name") or "").strip()
@@ -753,13 +799,14 @@ def submit_photo_confirm():
     conn = db.get_db()
     new_id = conn.execute(
         """INSERT INTO recipes
-           (name, submitter_name, category, cuisine, dietary_tags, prep_time, servings,
+           (name, cookbook, submitter_name, category, cuisine, dietary_tags, prep_time, servings,
             ingredients, instructions, story, source_image_path, status, submitted_at,
             parse_model, proofreading_notes)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s)
            RETURNING id""",
         (
             name,
+            g.cookbook.slug,
             submitter_name,
             category,
             cuisine,
@@ -786,6 +833,8 @@ def submit_photo_confirm():
 
 @app.route("/submit/url", methods=["POST"])
 def submit_url():
+    if not g.cookbook.allow_submissions:
+        abort(404)
     form = request.form
     submitter_name = (form.get("submitter_name") or "").strip()
     recipe_url = (form.get("recipe_url") or "").strip()
@@ -825,6 +874,8 @@ def submit_url_confirm():
     """Takes the (possibly hand-edited) fields from the review screen after
     a link import and actually creates the pending submission - the fetch/
     parse already happened in submit_url() above."""
+    if not g.cookbook.allow_submissions:
+        abort(404)
     form = request.form
     name = (form.get("name") or "").strip()
     submitter_name = (form.get("submitter_name") or "").strip()
@@ -852,13 +903,14 @@ def submit_url_confirm():
     conn = db.get_db()
     new_id = conn.execute(
         """INSERT INTO recipes
-           (name, submitter_name, category, cuisine, dietary_tags, prep_time, servings,
+           (name, cookbook, submitter_name, category, cuisine, dietary_tags, prep_time, servings,
             ingredients, instructions, story, source_url, status, submitted_at,
             parse_model, proofreading_notes)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s)
            RETURNING id""",
         (
             name,
+            g.cookbook.slug,
             submitter_name,
             category,
             cuisine,
@@ -888,6 +940,46 @@ def submitted():
     return render_template("submitted.html")
 
 
+def _manifest_response(name: str, short_name: str, start_url: str, icon_prefix: str) -> Response:
+    """Builds one Web App Manifest, themed for the current request's cookbook.
+
+    Was a static file per cookbook; now a route, since a static file can't
+    vary per request. Not behind admin_required - a browser fetches this
+    before any login happens, to know what "Add to Home Screen" should show."""
+    cb = g.cookbook
+    manifest = {
+        "name": name,
+        "short_name": short_name,
+        "start_url": start_url,
+        "display": "standalone",
+        "background_color": "#fbf6ee",
+        "theme_color": cb.accent_primary,
+        "icons": [
+            {
+                "src": url_for("static", filename=f"{cb.icon_dir}{icon_prefix}icon-192.png"),
+                "sizes": "192x192",
+                "type": "image/png",
+            },
+            {
+                "src": url_for("static", filename=f"{cb.icon_dir}{icon_prefix}icon-512.png"),
+                "sizes": "512x512",
+                "type": "image/png",
+            },
+        ],
+    }
+    return Response(json.dumps(manifest), mimetype="application/manifest+json")
+
+
+@app.route("/manifest.webmanifest")
+def manifest():
+    return _manifest_response(f"{g.cookbook.name} Cookbook", "Cookbook", "/", icon_prefix="")
+
+
+@app.route("/admin-manifest.webmanifest")
+def admin_manifest():
+    return _manifest_response("Cookbook Admin", "Admin", "/admin/login", icon_prefix="admin-")
+
+
 def _store_dish_photo(file_storage) -> str | None:
     raw_bytes = file_storage.read()
     filename = file_storage.filename
@@ -901,7 +993,7 @@ def _store_dish_photo(file_storage) -> str | None:
     if not storage.storage_configured():
         return None
     try:
-        return storage.upload_bytes(jpeg_bytes, "dish.jpg", "image/jpeg", "dishes")
+        return storage.upload_bytes(jpeg_bytes, "dish.jpg", "image/jpeg", f"{g.cookbook.slug}/dishes")
     except RuntimeError as exc:
         app.logger.error("Supabase upload failed: %s", exc)
         return None
@@ -913,8 +1005,9 @@ def _store_dish_photo(file_storage) -> str | None:
 def admin_login():
     if request.method == "POST":
         password = request.form.get("password", "")
-        if ADMIN_PASSWORD and password == ADMIN_PASSWORD:
-            session["is_admin"] = True
+        admin_password = os.environ.get(g.cookbook.admin_password_env, "")
+        if admin_password and password == admin_password:
+            session["admin_cookbook"] = g.cookbook.slug
             next_url = request.args.get("next") or url_for("admin_queue")
             return redirect(next_url)
         flash("Wrong password.")
@@ -923,7 +1016,7 @@ def admin_login():
 
 @app.route("/admin/logout")
 def admin_logout():
-    session.pop("is_admin", None)
+    session.pop("admin_cookbook", None)
     return redirect(url_for("index"))
 
 
@@ -938,7 +1031,8 @@ def admin_root():
 def admin_queue():
     conn = db.get_db()
     pending = conn.execute(
-        "SELECT * FROM recipes WHERE status = 'pending' ORDER BY submitted_at ASC"
+        "SELECT * FROM recipes WHERE cookbook = %s AND status = 'pending' ORDER BY submitted_at ASC",
+        (g.cookbook.slug,),
     ).fetchall()
     return render_template("admin_queue.html", recipes=pending)
 
@@ -948,7 +1042,8 @@ def admin_queue():
 def admin_published():
     conn = db.get_db()
     recipes = conn.execute(
-        "SELECT * FROM recipes WHERE status = 'published' ORDER BY LOWER(name) ASC"
+        "SELECT * FROM recipes WHERE cookbook = %s AND status = 'published' ORDER BY LOWER(name) ASC",
+        (g.cookbook.slug,),
     ).fetchall()
     return render_template("admin_published.html", recipes=recipes)
 
@@ -957,7 +1052,9 @@ def admin_published():
 @admin_required
 def admin_recipe_edit(recipe_id):
     conn = db.get_db()
-    recipe = conn.execute("SELECT * FROM recipes WHERE id = %s", (recipe_id,)).fetchone()
+    recipe = conn.execute(
+        "SELECT * FROM recipes WHERE id = %s AND cookbook = %s", (recipe_id, g.cookbook.slug)
+    ).fetchone()
     if not recipe:
         abort(404)
     active_dietary = set(recipe["dietary_tags"].split(",")) if recipe["dietary_tags"] else set()
@@ -994,7 +1091,7 @@ def _save_recipe_fields(conn, recipe_id, form):
     conn.execute(
         """UPDATE recipes SET name=%s, submitter_name=%s, category=%s, cuisine=%s,
            dietary_tags=%s, prep_time=%s, servings=%s, ingredients=%s, instructions=%s,
-           story=%s, proofreading_notes='' WHERE id=%s""",
+           story=%s, proofreading_notes='' WHERE id=%s AND cookbook=%s""",
         (
             (form.get("name") or "").strip(),
             (form.get("submitter_name") or "").strip(),
@@ -1007,6 +1104,7 @@ def _save_recipe_fields(conn, recipe_id, form):
             (form.get("instructions") or "").strip(),
             (form.get("story") or "").strip(),
             recipe_id,
+            g.cookbook.slug,
         ),
     )
 
@@ -1027,8 +1125,8 @@ def admin_recipe_approve(recipe_id):
     conn = db.get_db()
     _save_recipe_fields(conn, recipe_id, request.form)
     conn.execute(
-        "UPDATE recipes SET status='published', reviewed_at=%s WHERE id=%s",
-        (db.now_iso(), recipe_id),
+        "UPDATE recipes SET status='published', reviewed_at=%s WHERE id=%s AND cookbook=%s",
+        (db.now_iso(), recipe_id, g.cookbook.slug),
     )
     conn.commit()
     flash("Published!")
@@ -1041,8 +1139,8 @@ def admin_recipe_reject(recipe_id):
     conn = db.get_db()
     _save_recipe_fields(conn, recipe_id, request.form)
     conn.execute(
-        "UPDATE recipes SET status='rejected', reviewed_at=%s WHERE id=%s",
-        (db.now_iso(), recipe_id),
+        "UPDATE recipes SET status='rejected', reviewed_at=%s WHERE id=%s AND cookbook=%s",
+        (db.now_iso(), recipe_id, g.cookbook.slug),
     )
     conn.commit()
     flash("Rejected.")
@@ -1053,7 +1151,9 @@ def admin_recipe_reject(recipe_id):
 @admin_required
 def admin_recipe_reprocess(recipe_id):
     conn = db.get_db()
-    recipe = conn.execute("SELECT * FROM recipes WHERE id = %s", (recipe_id,)).fetchone()
+    recipe = conn.execute(
+        "SELECT * FROM recipes WHERE id = %s AND cookbook = %s", (recipe_id, g.cookbook.slug)
+    ).fetchone()
     if not recipe or not (recipe["source_image_path"] or recipe["source_url"]):
         flash("No source image or link to reprocess.")
         return redirect(url_for("admin_recipe_edit", recipe_id=recipe_id))
@@ -1092,7 +1192,7 @@ def admin_recipe_reprocess(recipe_id):
     # writing that empty string back would silently delete their words.
     conn.execute(
         """UPDATE recipes SET name=%s, category=%s, cuisine=%s, prep_time=%s, servings=%s,
-           ingredients=%s, instructions=%s, story=%s, parse_model=%s WHERE id=%s""",
+           ingredients=%s, instructions=%s, story=%s, parse_model=%s WHERE id=%s AND cookbook=%s""",
         (
             parsed["name"] or recipe["name"],
             parsed["category"],
@@ -1104,6 +1204,7 @@ def admin_recipe_reprocess(recipe_id):
             parsed["story"] or recipe["story"],
             parsed["parse_model"],
             recipe_id,
+            g.cookbook.slug,
         ),
     )
     conn.commit()
@@ -1117,7 +1218,9 @@ def admin_recipe_preview_fix(recipe_id):
     """Preview a proposed fix before applying it.
     Admin clicks Fix button → See proposed change → Accept or Reject."""
     conn = db.get_db()
-    recipe = conn.execute("SELECT * FROM recipes WHERE id = %s", (recipe_id,)).fetchone()
+    recipe = conn.execute(
+        "SELECT * FROM recipes WHERE id = %s AND cookbook = %s", (recipe_id, g.cookbook.slug)
+    ).fetchone()
     if not recipe:
         abort(404)
 
@@ -1181,7 +1284,9 @@ def admin_recipe_preview_fix(recipe_id):
 def admin_recipe_accept_fix(recipe_id):
     """Accept a proposed fix and apply it to the recipe."""
     conn = db.get_db()
-    recipe = conn.execute("SELECT * FROM recipes WHERE id = %s", (recipe_id,)).fetchone()
+    recipe = conn.execute(
+        "SELECT * FROM recipes WHERE id = %s AND cookbook = %s", (recipe_id, g.cookbook.slug)
+    ).fetchone()
     if not recipe:
         abort(404)
 
@@ -1236,8 +1341,8 @@ def admin_recipe_accept_fix(recipe_id):
 
     # Column name is from the fixed whitelist above, never raw user input.
     conn.execute(
-        f"UPDATE recipes SET {fixed_field}=%s, proofreading_notes=%s WHERE id=%s",
-        (field_after, remaining_notes, recipe_id),
+        f"UPDATE recipes SET {fixed_field}=%s, proofreading_notes=%s WHERE id=%s AND cookbook=%s",
+        (field_after, remaining_notes, recipe_id, g.cookbook.slug),
     )
     conn.commit()
 
@@ -1262,7 +1367,9 @@ def admin_recipe_check_formatting(recipe_id):
     Generates a fresh list of formatting issues for Accept/Reject workflow.
     Admin can send published recipes back through review process."""
     conn = db.get_db()
-    recipe = conn.execute("SELECT * FROM recipes WHERE id = %s", (recipe_id,)).fetchone()
+    recipe = conn.execute(
+        "SELECT * FROM recipes WHERE id = %s AND cookbook = %s", (recipe_id, g.cookbook.slug)
+    ).fetchone()
     if not recipe:
         abort(404)
 
@@ -1277,8 +1384,8 @@ def admin_recipe_check_formatting(recipe_id):
 
     # Store the new proofreading notes (overwriting any old ones)
     conn.execute(
-        "UPDATE recipes SET proofreading_notes=%s WHERE id=%s",
-        (proofreading_notes, recipe_id),
+        "UPDATE recipes SET proofreading_notes=%s WHERE id=%s AND cookbook=%s",
+        (proofreading_notes, recipe_id, g.cookbook.slug),
     )
     conn.commit()
 
@@ -1295,10 +1402,13 @@ def admin_recipe_check_formatting(recipe_id):
 @admin_required
 def admin_review_delete(review_id):
     conn = db.get_db()
-    review = conn.execute("SELECT recipe_id FROM reviews WHERE id = %s", (review_id,)).fetchone()
+    review = conn.execute(
+        "SELECT recipe_id FROM reviews WHERE id = %s AND cookbook = %s",
+        (review_id, g.cookbook.slug),
+    ).fetchone()
     if not review:
         abort(404)
-    conn.execute("DELETE FROM reviews WHERE id = %s", (review_id,))
+    conn.execute("DELETE FROM reviews WHERE id = %s AND cookbook = %s", (review_id, g.cookbook.slug))
     conn.commit()
     flash("Review deleted.")
     return redirect(url_for("recipe_detail", recipe_id=review["recipe_id"]) + "#reviews")
@@ -1310,8 +1420,9 @@ def admin_corrections():
     conn = db.get_db()
     pending = conn.execute(
         """SELECT e.*, r.name AS recipe_name FROM recipe_edits e
-           JOIN recipes r ON r.id = e.recipe_id
-           WHERE e.status = 'pending' ORDER BY e.submitted_at ASC"""
+           JOIN recipes r ON r.id = e.recipe_id AND r.cookbook = e.cookbook
+           WHERE e.cookbook = %s AND e.status = 'pending' ORDER BY e.submitted_at ASC""",
+        (g.cookbook.slug,),
     ).fetchall()
     return render_template("admin_corrections.html", corrections=pending)
 
@@ -1320,10 +1431,15 @@ def admin_corrections():
 @admin_required
 def admin_correction_detail(edit_id):
     conn = db.get_db()
-    edit = conn.execute("SELECT * FROM recipe_edits WHERE id = %s", (edit_id,)).fetchone()
+    edit = conn.execute(
+        "SELECT * FROM recipe_edits WHERE id = %s AND cookbook = %s", (edit_id, g.cookbook.slug)
+    ).fetchone()
     if not edit:
         abort(404)
-    recipe = conn.execute("SELECT * FROM recipes WHERE id = %s", (edit["recipe_id"],)).fetchone()
+    recipe = conn.execute(
+        "SELECT * FROM recipes WHERE id = %s AND cookbook = %s",
+        (edit["recipe_id"], g.cookbook.slug),
+    ).fetchone()
     if not recipe:
         abort(404)
 
@@ -1347,7 +1463,9 @@ def admin_correction_approve(edit_id):
     added to it later would silently join this path too.
     """
     conn = db.get_db()
-    edit = conn.execute("SELECT * FROM recipe_edits WHERE id = %s", (edit_id,)).fetchone()
+    edit = conn.execute(
+        "SELECT * FROM recipe_edits WHERE id = %s AND cookbook = %s", (edit_id, g.cookbook.slug)
+    ).fetchone()
     if not edit:
         abort(404)
 
@@ -1355,8 +1473,8 @@ def admin_correction_approve(edit_id):
     # replayed POST) finds it already handled and writes nothing.
     claimed = conn.execute(
         "UPDATE recipe_edits SET status='approved', reviewed_at=%s "
-        "WHERE id=%s AND status='pending'",
-        (db.now_iso(), edit_id),
+        "WHERE id=%s AND cookbook=%s AND status='pending'",
+        (db.now_iso(), edit_id, g.cookbook.slug),
     )
     if claimed.rowcount != 1:
         conn.rollback()
@@ -1369,8 +1487,8 @@ def admin_correction_approve(edit_id):
     if cols:
         assignments = ", ".join(f"{c} = %s" for c in cols)
         applied = conn.execute(
-            f"UPDATE recipes SET {assignments} WHERE id = %s AND status = 'published'",
-            [proposed[c] for c in cols] + [edit["recipe_id"]],
+            f"UPDATE recipes SET {assignments} WHERE id = %s AND cookbook = %s AND status = 'published'",
+            [proposed[c] for c in cols] + [edit["recipe_id"], g.cookbook.slug],
         )
         if applied.rowcount != 1:
             conn.rollback()
@@ -1389,8 +1507,8 @@ def admin_correction_reject(edit_id):
     conn = db.get_db()
     rejected = conn.execute(
         "UPDATE recipe_edits SET status='rejected', reviewed_at=%s "
-        "WHERE id=%s AND status='pending'",
-        (db.now_iso(), edit_id),
+        "WHERE id=%s AND cookbook=%s AND status='pending'",
+        (db.now_iso(), edit_id, g.cookbook.slug),
     )
     if rejected.rowcount != 1:
         conn.rollback()
@@ -1407,8 +1525,9 @@ def admin_photos():
     conn = db.get_db()
     pending = conn.execute(
         """SELECT dp.*, r.name AS recipe_name FROM dish_photos dp
-           JOIN recipes r ON r.id = dp.recipe_id
-           WHERE dp.status = 'pending' ORDER BY dp.submitted_at ASC"""
+           JOIN recipes r ON r.id = dp.recipe_id AND r.cookbook = dp.cookbook
+           WHERE dp.cookbook = %s AND dp.status = 'pending' ORDER BY dp.submitted_at ASC""",
+        (g.cookbook.slug,),
     ).fetchall()
     return render_template("admin_photos.html", photos=pending)
 
@@ -1417,12 +1536,14 @@ def admin_photos():
 @admin_required
 def admin_photo_approve(photo_id):
     conn = db.get_db()
-    photo = conn.execute("SELECT id FROM dish_photos WHERE id = %s", (photo_id,)).fetchone()
+    photo = conn.execute(
+        "SELECT id FROM dish_photos WHERE id = %s AND cookbook = %s", (photo_id, g.cookbook.slug)
+    ).fetchone()
     if not photo:
         abort(404)
     conn.execute(
-        "UPDATE dish_photos SET status='published', reviewed_at=%s WHERE id=%s",
-        (db.now_iso(), photo_id),
+        "UPDATE dish_photos SET status='published', reviewed_at=%s WHERE id=%s AND cookbook=%s",
+        (db.now_iso(), photo_id, g.cookbook.slug),
     )
     conn.commit()
     flash("Photo published.")
@@ -1433,12 +1554,14 @@ def admin_photo_approve(photo_id):
 @admin_required
 def admin_photo_reject(photo_id):
     conn = db.get_db()
-    photo = conn.execute("SELECT id FROM dish_photos WHERE id = %s", (photo_id,)).fetchone()
+    photo = conn.execute(
+        "SELECT id FROM dish_photos WHERE id = %s AND cookbook = %s", (photo_id, g.cookbook.slug)
+    ).fetchone()
     if not photo:
         abort(404)
     conn.execute(
-        "UPDATE dish_photos SET status='rejected', reviewed_at=%s WHERE id=%s",
-        (db.now_iso(), photo_id),
+        "UPDATE dish_photos SET status='rejected', reviewed_at=%s WHERE id=%s AND cookbook=%s",
+        (db.now_iso(), photo_id, g.cookbook.slug),
     )
     conn.commit()
     flash("Photo rejected.")
@@ -1450,10 +1573,13 @@ def admin_photo_reject(photo_id):
 def admin_photo_delete(photo_id):
     """Removes an already-published photo (post-hoc moderation)."""
     conn = db.get_db()
-    photo = conn.execute("SELECT recipe_id FROM dish_photos WHERE id = %s", (photo_id,)).fetchone()
+    photo = conn.execute(
+        "SELECT recipe_id FROM dish_photos WHERE id = %s AND cookbook = %s",
+        (photo_id, g.cookbook.slug),
+    ).fetchone()
     if not photo:
         abort(404)
-    conn.execute("DELETE FROM dish_photos WHERE id = %s", (photo_id,))
+    conn.execute("DELETE FROM dish_photos WHERE id = %s AND cookbook = %s", (photo_id, g.cookbook.slug))
     conn.commit()
     flash("Photo removed.")
     return redirect(url_for("recipe_detail", recipe_id=photo["recipe_id"]) + "#photos")
@@ -1463,11 +1589,11 @@ def admin_photo_delete(photo_id):
 @admin_required
 def admin_settings():
     if request.method == "POST":
-        db.set_setting("intro_text", (request.form.get("intro_text") or "").strip())
+        db.set_setting(g.cookbook.slug, "intro_text", (request.form.get("intro_text") or "").strip())
         flash("Homepage welcome message saved.")
         return redirect(url_for("admin_settings"))
 
-    intro_text = db.get_setting("intro_text", db.DEFAULT_INTRO_TEXT)
+    intro_text = db.get_setting(g.cookbook.slug, "intro_text", "")
     return render_template("admin_settings.html", intro_text=intro_text)
 
 

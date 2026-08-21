@@ -56,7 +56,10 @@
 </form>
 
 {% if recipes|length == 0 %}
-  <p class="empty-state">No recipes match yet{% if q or active_category or active_cuisine or dietary_chips|selectattr('active')|list %} - try clearing a filter{% endif %}. Be the first to <a href="{{ url_for('submit_form') }}">add one</a>!</p>
+  <p class="empty-state">
+    No recipes match yet{% if q or active_category or active_cuisine or dietary_chips|selectattr('active')|list %} - try clearing a filter{% endif %}.
+    {% if cookbook.allow_submissions %}Be the first to <a href="{{ url_for('submit_form') }}">add one</a>!{% endif %}
+  </p>
 {% else %}
   <div class="recipe-grid">
     {% for r in recipes %}

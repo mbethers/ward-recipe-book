@@ -12,3 +12,7 @@ d1_import_output*.json
 # Generated seed data for the not-yet-created Bethers Family Cookbook
 bethers_family_seed.json
 bethers_family_seed_photos/
+
+# Icon/branding work for the D1 and Bethers Family forks - belongs in
+# those repos' own static/ folders once they exist, not in this one
+branding/
