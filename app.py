@@ -1027,7 +1027,7 @@ def superadmin_manifest():
         "start_url": "/superadmin",
         "display": "standalone",
         "background_color": "#ffffff",
-        "theme_color": "#000000",
+        "theme_color": "#0b3587",
         "icons": [
             {"src": url_for("static", filename="superadmin/icon-192.png"), "sizes": "192x192", "type": "image/png"},
             {"src": url_for("static", filename="superadmin/icon-512.png"), "sizes": "512x512", "type": "image/png"},
