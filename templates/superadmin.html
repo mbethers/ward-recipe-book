@@ -20,7 +20,7 @@
       color: #111;
       padding: 48px 20px;
     }
-    .mascot { display: block; width: 216px; height: 216px; border-radius: 48px; margin: 0 auto 20px; }
+    .mascot { display: block; width: 135px; height: 135px; border-radius: 30px; margin: 0 auto 20px; }
     h1 { text-align: center; font-size: 1.3rem; margin: 0 0 32px; }
     .grid {
       display: flex;
@@ -41,14 +41,14 @@
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
     }
     .tile:active { background: #f7f7f7; }
-    .tile img { width: 90px; height: 90px; border-radius: 20px; display: block; flex-shrink: 0; }
+    .tile img { width: 135px; height: 135px; border-radius: 30px; display: block; flex-shrink: 0; }
     .tile-name { font-weight: 700; font-size: 1.05rem; }
     .logout { display: block; text-align: center; margin: 28px auto 0; color: #888; font-size: 0.85rem; text-decoration: none; }
   </style>
 </head>
 <body>
   <img class="mascot" src="{{ url_for('static', filename='superadmin/icon-512.png') }}" alt="">
-  <h1>Which cookbook?</h1>
+  <h1>Select a cookbook</h1>
   <div class="grid">
     {% for cb in cookbook_list %}
       <a class="tile" href="https://{{ cb.hostnames|first }}/admin/login">
