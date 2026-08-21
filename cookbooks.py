@@ -38,6 +38,7 @@ class Cookbook:
     allow_submissions: bool   # new recipes, corrections, added dish photos
     allow_reviews: bool       # star ratings/comments on existing recipes
     footer_tagline: str
+    header_subtitle: str = ""  # shown under the name in the header, e.g. D1's compile credit
 
 
 # UW and Family share these neutrals (warm paper/ink) and differ only in
@@ -93,6 +94,7 @@ COOKBOOKS = [
         allow_submissions=False,
         allow_reviews=False,
         footer_tagline="Mark Bethers and his buddy Claude Code are to blame for this app",
+        header_subtitle="Compiled May 2024 by Kendra Johnson",
     ),
     Cookbook(
         slug="family",

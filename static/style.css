@@ -55,11 +55,12 @@ a:hover { text-decoration: underline; }
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 700;
-  font-size: 1.05rem;
   color: var(--ink);
 }
 .brand-logo { width: 84px; height: 84px; border-radius: 18px; display: block; }
+.brand-text { display: flex; flex-direction: column; gap: 2px; }
+.brand-title { font-weight: 700; font-size: 1.05rem; }
+.brand-subtitle { font-weight: 400; font-size: 0.78rem; color: var(--muted); }
 .site-header .add-link {
   background: var(--terracotta);
   color: var(--on-accent);

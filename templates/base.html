@@ -23,7 +23,12 @@
   <header class="site-header">
     <a class="brand" href="{{ url_for('index') }}">
       <img class="brand-logo" src="{{ url_for('static', filename=cookbook.icon_dir + 'brand-logo.png') }}" alt="">
-      {{ ward_name }} Cookbook
+      <span class="brand-text">
+        <span class="brand-title">{{ ward_name }} Cookbook</span>
+        {% if cookbook.header_subtitle %}
+          <span class="brand-subtitle">{{ cookbook.header_subtitle }}</span>
+        {% endif %}
+      </span>
     </a>
     {% if cookbook.allow_submissions %}
       <a class="add-link" href="{{ url_for('submit_form') }}">+ Add a recipe</a>
