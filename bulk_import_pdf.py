@@ -1,12 +1,18 @@
-"""One-time bulk import of the Durham 1st Ward Cookbook PDF into a cookbook
-database. Local admin tool - NOT part of the deployed Flask app, not in
-requirements.txt. Needs `pip install pypdf` in the local venv.
+"""One-time bulk import of the Durham 1st Ward Cookbook PDF into the shared
+cookbook database (D1 is one of three cookbooks sharing one database - see
+cookbooks.py - not its own separate database). Local admin tool - NOT part
+of the deployed Flask app, not in requirements.txt. Needs `pip install
+pypdf` in the local venv.
 
 Dry-run (default, no DATABASE_URL read at all):
     ./venv/bin/python3 bulk_import_pdf.py
 
-Real run, once a D1 database actually exists:
-    DATABASE_URL=postgresql://... ./venv/bin/python3 bulk_import_pdf.py --commit [--wipe-first]
+Real run, against the shared production database:
+    DATABASE_URL=postgresql://... ./venv/bin/python3 bulk_import_pdf.py --commit [--reset-first]
+
+Every inserted row is tagged cookbook='d1', and --reset-first only ever
+deletes cookbook='d1' rows - safe to run against a database that already
+holds UW's and the Bethers Family's data.
 
 Everything is resumable per-section: a completed section's recipes are
 written to the output JSON as soon as that section succeeds, so a failure on
@@ -344,6 +350,7 @@ def build_row(raw: dict, section: dict) -> tuple:
 
     row = {
         "name": name,
+        "cookbook": "d1",
         "submitter_name": submitter_name,
         "category": category,
         "cuisine": cuisine,
@@ -498,7 +505,7 @@ def run_dry(pdf_path: str, only_sections: list = None) -> None:
     print(f"\nFull output: {OUTPUT_PATH}")
 
 
-def run_commit(database_url: str, wipe_first: bool) -> None:
+def run_commit(database_url: str, reset_first: bool) -> None:
     import psycopg
     from psycopg.rows import dict_row
     import db as db_module
@@ -511,15 +518,23 @@ def run_commit(database_url: str, wipe_first: bool) -> None:
     if not all_rows:
         sys.exit("Output file has no recipes - nothing to commit.")
 
-    with psycopg.connect(database_url, row_factory=dict_row) as conn:
-        with conn.cursor() as cur:
-            cur.execute(db_module.SCHEMA)
-        conn.commit()
+    # This database is shared with the University Ward and Bethers Family
+    # cookbooks (see cookbooks.py) - init_db() runs the full, idempotent
+    # migration chain (including the cookbook column) rather than just
+    # SCHEMA, so this is safe to run against a database that already has
+    # other cookbooks' data in it.
+    os.environ["DATABASE_URL"] = database_url
+    db_module.init_db()
 
-        if wipe_first:
-            conn.execute("TRUNCATE recipes RESTART IDENTITY CASCADE")
+    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        if reset_first:
+            # Scoped to this cookbook only - a bare TRUNCATE here would wipe
+            # every cookbook sharing this database, not just D1's rows.
+            # ON DELETE CASCADE on reviews/dish_photos/recipe_edits' FKs
+            # cleans those up too.
+            deleted = conn.execute("DELETE FROM recipes WHERE cookbook = 'd1'")
             conn.commit()
-            print("Truncated recipes table.")
+            print(f"Deleted {deleted.rowcount} existing D1 recipe(s).")
 
         cols = list(all_rows[0].keys())
         placeholders = ", ".join(f"%({c})s" for c in cols)
@@ -527,7 +542,7 @@ def run_commit(database_url: str, wipe_first: bool) -> None:
         with conn.cursor() as cur:
             cur.executemany(sql, all_rows)
         conn.commit()
-        print(f"Inserted {len(all_rows)} recipe(s) into {database_url.split('@')[-1]}.")
+        print(f"Inserted {len(all_rows)} recipe(s) into {database_url.split('@')[-1]} (cookbook='d1').")
 
 
 def main():
@@ -535,7 +550,10 @@ def main():
     parser.add_argument("--pdf", default=PDF_PATH)
     parser.add_argument("--sections", help="comma-separated section names to (re)run")
     parser.add_argument("--commit", action="store_true", help="write to DATABASE_URL for real")
-    parser.add_argument("--wipe-first", action="store_true", help="TRUNCATE recipes before inserting")
+    parser.add_argument(
+        "--reset-first", action="store_true",
+        help="delete D1's existing recipes (cookbook='d1' only) before inserting",
+    )
     args = parser.parse_args()
 
     only_sections = [s.strip() for s in args.sections.split(",")] if args.sections else None
@@ -544,7 +562,7 @@ def main():
         database_url = os.environ.get("DATABASE_URL")
         if not database_url:
             sys.exit("--commit requires DATABASE_URL to be set.")
-        run_commit(database_url, args.wipe_first)
+        run_commit(database_url, args.reset_first)
     else:
         run_dry(args.pdf, only_sections)
 

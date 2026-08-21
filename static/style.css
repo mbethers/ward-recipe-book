@@ -8,12 +8,6 @@
   --sage: #7f9473;
   --border: #e8ddcb;
   --danger: #b5443a;
-  /* Accent pair pulled from the app icon (UNC/Duke house) - used sparingly as
-     touches (category badges, active filters, header accent), not a repaint:
-     warm tones stay the base since blue reads as an appetite suppressant in
-     food-adjacent design. */
-  --carolina-blue: #4b9cd3;
-  --duke-navy: #012169;
   --radius: 14px;
   --max-width: 720px;
 }
@@ -45,7 +39,7 @@ a:hover { text-decoration: underline; }
   padding: 14px 16px 13px;
   background: var(--paper);
   border-bottom: 3px solid;
-  border-image: linear-gradient(to right, var(--carolina-blue) 50%, var(--duke-navy) 50%) 1;
+  border-bottom-color: var(--terracotta-dark);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -158,9 +152,9 @@ h2 { font-size: 1.1rem; margin: 20px 0 8px; }
 /* Only an actually-applied filter goes navy. The class is set server-side so
    this holds without JavaScript. */
 .filter-select.filter-on {
-  background: var(--duke-navy);
+  background: var(--terracotta-dark);
   color: #fff;
-  border-color: var(--duke-navy);
+  border-color: var(--terracotta-dark);
 }
 
 .filter-dropdown { position: relative; flex: 0 0 auto; }
@@ -510,7 +504,7 @@ form textarea { resize: vertical; }
   font-size: 0.9rem;
 }
 .field-badge {
-  background: var(--carolina-blue);
+  background: var(--terracotta-dark);
   color: white;
   padding: 3px 8px;
   border-radius: 4px;

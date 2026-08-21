@@ -12,7 +12,7 @@
   admin icon looked right but always launched into the public site's start_url.
 #}
 {% block home_screen_meta %}
-<link rel="apple-touch-icon" href="{{ url_for('static', filename='admin-touch-icon.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename=cookbook.icon_dir + 'admin-touch-icon.png') }}">
 <meta name="apple-mobile-web-app-title" content="Cookbook Admin">
-<link rel="manifest" href="{{ url_for('static', filename='admin-manifest.webmanifest') }}">
+<link rel="manifest" href="{{ url_for('admin_manifest') }}">
 {% endblock %}

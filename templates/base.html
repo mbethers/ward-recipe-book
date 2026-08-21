@@ -5,22 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ ward_name }} Cookbook{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32.png') }}">
-  <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16.png') }}">
+  {# Overrides style.css's default (University Ward) accent with this
+     request's cookbook - comes after the stylesheet link so the cascade
+     picks it up without !important. #}
+  <style>:root{--terracotta:{{ cookbook.accent_primary }};--terracotta-dark:{{ cookbook.accent_secondary }};}</style>
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename=cookbook.icon_dir + 'favicon-32.png') }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename=cookbook.icon_dir + 'favicon-16.png') }}">
   {% block home_screen_meta %}
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename=cookbook.icon_dir + 'apple-touch-icon.png') }}">
   <meta name="apple-mobile-web-app-title" content="{{ ward_name }} Cookbook">
-  <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
+  <link rel="manifest" href="{{ url_for('manifest') }}">
   {% endblock %}
-  <meta name="theme-color" content="#c1613f">
+  <meta name="theme-color" content="{{ cookbook.accent_primary }}">
 </head>
 <body>
   <header class="site-header">
     <a class="brand" href="{{ url_for('index') }}">
-      <img class="brand-logo" src="{{ url_for('static', filename='brand-logo.png') }}" alt="">
+      <img class="brand-logo" src="{{ url_for('static', filename=cookbook.icon_dir + 'brand-logo.png') }}" alt="">
       {{ ward_name }} Cookbook
     </a>
-    <a class="add-link" href="{{ url_for('submit_form') }}">+ Add a recipe</a>
+    {% if cookbook.allow_submissions %}
+      <a class="add-link" href="{{ url_for('submit_form') }}">+ Add a recipe</a>
+    {% endif %}
   </header>
 
   {% with messages = get_flashed_messages() %}
@@ -39,7 +45,7 @@
 
   <footer class="site-footer">
     <img class="footer-icon" src="{{ url_for('static', filename='bishop-tools-icon.png') }}" alt="">
-    <span>Bishop Bethers and his buddy Claude Code are to blame for this app</span>
+    <span>{{ cookbook.footer_tagline }}</span>
     <button type="button" class="share-link" id="share-app">Share cookbook</button>
   </footer>
 

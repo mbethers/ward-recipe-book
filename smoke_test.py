@@ -13,8 +13,9 @@ import re
 import sys
 
 os.environ["DATABASE_URL"] = ""          # makes init_db() a no-op
-os.environ["ADMIN_PASSWORD"] = "testpass"
+os.environ["ADMIN_PASSWORD_UW"] = "testpass"
 os.environ["FLASK_SECRET_KEY"] = "test-key"
+os.environ["FORCE_COOKBOOK"] = "uw"      # picks a cookbook without needing a real Host header
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import app as flaskapp  # noqa: E402
@@ -115,7 +116,7 @@ db.get_db = lambda: Conn()
 flaskapp.db.get_db = lambda: Conn()
 client = flaskapp.app.test_client()
 with client.session_transaction() as sess:
-    sess["is_admin"] = True
+    sess["admin_cookbook"] = "uw"
 
 fails = []
 
@@ -318,7 +319,7 @@ before = recipe_snapshot()
 client.post("/recipe/7/suggest", data={
     "suggester_name": "Sneaky", "submitter_name": "Hacker", "name": "New Title"})
 check("submitter_name absent from the stored proposal",
-      INSERTED and "submitter_name" not in json.loads(INSERTED[0][3]), str(INSERTED))
+      INSERTED and "submitter_name" not in json.loads(INSERTED[0][4]), str(INSERTED))
 reset()
 set_edit({"name": "New Title"})
 client.post("/admin/correction/1/approve")
@@ -339,6 +340,44 @@ set_edit({"ingredients": "rejected value\na\nb\nc"})
 client.post("/admin/correction/1/reject")
 check("reject changes nothing at all", recipe_snapshot() == {k: BASE[k] for k in BASE})
 check("edit retained as rejected", EDIT_STATE["status"] == "rejected", EDIT_STATE["status"])
+
+# =================================================== per-cookbook branding ==
+# This file's whole reason to exist is catching Jinja constructs that only
+# fail at render time - now that one codebase renders three cookbooks'
+# branding (icons, accent colors, footer, allow_submissions/allow_reviews
+# conditionals), each one needs its own render pass through here too.
+
+print("\nPer-cookbook branding renders without error:\n")
+for slug, password in (("d1", "d1pass"), ("family", "familypass")):
+    os.environ[f"ADMIN_PASSWORD_{slug.upper()}"] = password
+    os.environ["FORCE_COOKBOOK"] = slug
+    with client.session_transaction() as sess:
+        sess["admin_cookbook"] = slug
+    reset()
+
+    r = client.get("/")
+    check(f"{slug}: index 200", r.status_code == 200, str(r.status_code))
+    r = client.get("/admin/recipe/7")
+    check(f"{slug}: admin edit page 200", r.status_code == 200, str(r.status_code))
+    for path in ("/admin/queue", "/admin/published", "/admin/corrections"):
+        r = client.get(path)
+        check(f"{slug}: {path} 200", r.status_code == 200, str(r.status_code))
+    r = client.get("/manifest.webmanifest")
+    check(f"{slug}: manifest 200", r.status_code == 200, str(r.status_code))
+    r = client.get("/admin-manifest.webmanifest")
+    check(f"{slug}: admin manifest 200", r.status_code == 200, str(r.status_code))
+
+    # D1 is fully locked - its own recipe page (not just /submit) must render
+    # cleanly with no submission/review UI, not error out building the page.
+    STATE["status"] = "published"
+    r = client.get("/recipe/7")
+    check(f"{slug}: public recipe page 200", r.status_code == 200, str(r.status_code))
+    if slug == "d1":
+        body = r.get_data(as_text=True)
+        check("d1: no suggest-a-correction link", "suggest_edit_form" not in body)
+        check("d1: no star-rating form", 'name="rating"' not in body)
+
+os.environ["FORCE_COOKBOOK"] = "uw"  # restore, in case anything runs after this file
 
 print("\n" + "=" * 64)
 print(f"{len(fails)} FAILURE(S): {fails}" if fails else "ALL CHECKS PASSED")
