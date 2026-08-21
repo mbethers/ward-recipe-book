@@ -376,6 +376,11 @@ for slug, password in (("d1", "d1pass"), ("family", "familypass")):
         body = r.get_data(as_text=True)
         check("d1: no suggest-a-correction link", "suggest_edit_form" not in body)
         check("d1: no star-rating form", 'name="rating"' not in body)
+    if slug == "family":
+        body = r.get_data(as_text=True)
+        check("family: footer uses the mountain-chef mascot", "superadmin/icon-512.png" in body)
+        check("family: footer icon is 3x sized (72px)", 'width:72px' in body)
+        check("family: footer says Paw Paw, not Mark Bethers", "Paw Paw and his buddy" in body)
 
 os.environ["FORCE_COOKBOOK"] = "uw"  # restore, in case anything runs after this file
 

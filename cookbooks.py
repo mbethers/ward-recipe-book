@@ -40,6 +40,8 @@ class Cookbook:
     footer_tagline: str
     header_subtitle: str = ""  # shown under the name in the header, e.g. D1's compile credit
     header_title_lines: tuple = None  # forces a specific line break in the header title, e.g. D1's "...Ward" / "Family Cookbook"
+    footer_icon: str = "bishop-tools-icon.png"  # static/ path, not cookbook-scoped like icon_dir
+    footer_icon_size: int = 24  # px - square, border-radius scales with it (see base.html)
 
     @property
     def title_lines(self):
@@ -115,7 +117,9 @@ COOKBOOKS = [
         admin_password_env="ADMIN_PASSWORD_FAMILY",
         allow_submissions=True,
         allow_reviews=True,
-        footer_tagline="Mark Bethers and his buddy Claude Code are to blame for this app",
+        footer_tagline="Paw Paw and his buddy Claude Code are to blame for this app",
+        footer_icon="superadmin/icon-512.png",  # the mountain-chef mascot, reused from the SuperAdmin launcher
+        footer_icon_size=72,  # 3x the default 24px
     ),
 ]
 

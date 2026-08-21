@@ -50,7 +50,8 @@
   </main>
 
   <footer class="site-footer">
-    <img class="footer-icon" src="{{ url_for('static', filename='bishop-tools-icon.png') }}" alt="">
+    <img class="footer-icon" src="{{ url_for('static', filename=cookbook.footer_icon) }}" alt=""
+         style="width:{{ cookbook.footer_icon_size }}px;height:{{ cookbook.footer_icon_size }}px;border-radius:{{ (cookbook.footer_icon_size * 0.25)|round|int }}px;">
     <span>{{ cookbook.footer_tagline }}</span>
     <button type="button" class="share-link" id="share-app">Share cookbook</button>
   </footer>

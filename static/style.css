@@ -83,7 +83,9 @@ a:hover { text-decoration: underline; }
   font-size: 0.85rem;
   padding: 24px 16px;
 }
-.footer-icon { width: 24px; height: 24px; border-radius: 6px; display: block; }
+/* Size/radius are per-cookbook (set inline in base.html) - Family's uses
+   a 3x-larger mascot icon than UW/D1's default. */
+.footer-icon { display: block; }
 .site-footer .share-link {
   background: transparent;
   border: 1.5px solid var(--terracotta);
