@@ -68,6 +68,16 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT NOT NULL DEFAULT ''
 );
 
+-- One row per real page view (see app.py's _record_page_view), so the
+-- SuperAdmin launcher can show "[#] total visits" per cookbook. Deliberately
+-- minimal - no path/IP/user-agent - this is a traffic counter, not analytics.
+CREATE TABLE IF NOT EXISTS page_views (
+    id SERIAL PRIMARY KEY,
+    cookbook TEXT NOT NULL,
+    viewed_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_page_views_cookbook ON page_views(cookbook);
+
 -- Corrections the public suggests on an already-published recipe. Kept in their
 -- own table rather than as extra rows in `recipes` so that publicly-supplied
 -- text is never one missing "WHERE status = 'published'" away from the live

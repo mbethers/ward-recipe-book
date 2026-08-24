@@ -44,7 +44,7 @@
     .tile img { width: 135px; height: 135px; border-radius: 30px; display: block; flex-shrink: 0; }
     .tile-text { display: flex; flex-direction: column; gap: 3px; }
     .tile-name { font-weight: 700; font-size: 1.05rem; }
-    .tile-pending { font-weight: 400; font-size: 0.88rem; color: #666; }
+    .tile-meta { font-weight: 400; font-size: 0.88rem; color: #666; }
     .logout { display: block; text-align: center; margin: 28px auto 0; color: #888; font-size: 0.85rem; text-decoration: none; }
   </style>
 </head>
@@ -58,8 +58,9 @@
         <span class="tile-text">
           <span class="tile-name">{{ cb.name }}</span>
           {% if cb.slug in pending_counts %}
-            <span class="tile-pending">{{ pending_counts[cb.slug] }} Reviews pending</span>
+            <span class="tile-meta">{{ pending_counts[cb.slug] }} Reviews pending</span>
           {% endif %}
+          <span class="tile-meta">{{ visit_counts[cb.slug] }} total visits</span>
         </span>
       </a>
     {% endfor %}

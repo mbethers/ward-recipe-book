@@ -55,6 +55,7 @@ EDIT = {
 }
 EDIT_STATE = dict(EDIT)
 INSERTED = []          # rows an INSERT would have created
+PAGE_VIEWS = []         # (cookbook, viewed_at) rows _record_page_view would have inserted
 
 
 class Result:
@@ -91,6 +92,9 @@ class Conn:
 
         if s.startswith("insert into recipe_edits"):
             INSERTED.append(params)
+            return Result([{"id": 1}])
+        if s.startswith("insert into page_views"):
+            PAGE_VIEWS.append(params)
             return Result([{"id": 1}])
         if s.startswith(("insert", "delete", "update")):
             return Result([{"id": 7}])
@@ -142,6 +146,7 @@ def reset():
     EDIT_STATE.clear()
     EDIT_STATE.update(EDIT)
     INSERTED.clear()
+    PAGE_VIEWS.clear()
 
 
 def set_edit(proposed, base=None):
@@ -154,6 +159,24 @@ def set_edit(proposed, base=None):
 def recipe_snapshot():
     return {k: STATE[k] for k in BASE}
 
+
+# ---------------------------------------------------------------- page views
+print("Page-view recording (SuperAdmin 'total visits' count):\n")
+reset()
+client.get("/")
+check("a real cookbook page (200) records a page view",
+      len(PAGE_VIEWS) == 1 and PAGE_VIEWS[0][0] == "uw", str(PAGE_VIEWS))
+
+client.get("/admin/queue")
+check("an admin route does NOT record a page view", len(PAGE_VIEWS) == 1, str(PAGE_VIEWS))
+
+client.get("/static/style.css")
+check("a static asset does NOT record a page view", len(PAGE_VIEWS) == 1, str(PAGE_VIEWS))
+
+STATE["status"] = "pending"  # makes /recipe/7 404, same trick used elsewhere in this file
+client.get("/recipe/7")
+check("a 404 page does NOT record a page view", len(PAGE_VIEWS) == 1, str(PAGE_VIEWS))
+reset()
 
 # --------------------------------------------------------------- recipe page
 print("Recipe page:\n")
@@ -427,6 +450,8 @@ check("UW and Family tiles show a 'Reviews pending' line",
       re.search(r"\d+ Reviews pending", body) is not None)
 check("D1 tile shows no 'Reviews pending' line at all (nothing there is ever reviewable)",
       body.count("Reviews pending") == 2)
+check("all 3 tiles show a 'total visits' line, D1 included (it's still browsable)",
+      body.count("total visits") == 3)
 
 print("\nSuperadmin -> per-cookbook admin handoff (no second password):\n")
 r = client.get("/superadmin/enter/uw", headers=SUPERADMIN_HOST)

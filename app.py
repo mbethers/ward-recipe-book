@@ -102,6 +102,43 @@ def _resolve_cookbook():
     g.cookbook = cookbook
 
 
+# Paths that don't count as someone visiting a cookbook, even though they're
+# plain GETs on a resolved cookbook's own domain: /admin/* is staff running
+# the review console, not a visitor; /static/* is an asset, not a page.
+_VIEW_EXCLUDED_PREFIXES = ("/admin", "/static/")
+
+
+@app.after_request
+def _record_page_view(response):
+    """One row in page_views per real visitor page load, for the SuperAdmin
+    launcher's "[#] total visits" line (see superadmin_launcher()). Counts a
+    GET as a visit only if it's on an actual cookbook's own domain (not
+    admin.bethers.dev - g.cookbook is None there), isn't admin/asset traffic,
+    isn't a manifest fetch, and actually rendered (status 200 - a 404 on a
+    bad recipe id, or a redirect, isn't someone reading a page).
+
+    Wrapped in try/except on purpose: this must never be the reason a real
+    page load 500s for a visitor - same "best-effort, never break the
+    request it's attached to" reasoning as _notify_admin() above."""
+    if (
+        g.get("cookbook") is not None
+        and request.method == "GET"
+        and response.status_code == 200
+        and not request.path.startswith(_VIEW_EXCLUDED_PREFIXES)
+        and not request.path.endswith(".webmanifest")
+    ):
+        try:
+            conn = db.get_db()
+            conn.execute(
+                "INSERT INTO page_views (cookbook, viewed_at) VALUES (%s, %s)",
+                (g.cookbook.slug, db.now_iso()),
+            )
+            conn.commit()
+        except Exception:
+            app.logger.exception("Failed to record page view")
+    return response
+
+
 def admin_required(view):
     @functools.wraps(view)
     def wrapped(*args, **kwargs):
@@ -1078,7 +1115,18 @@ def superadmin_launcher():
         ).fetchone()["n"]
         pending_counts[cb.slug] = n_recipes + n_photos
 
-    return render_template("superadmin.html", cookbook_list=ordered, pending_counts=pending_counts)
+    # "[#] total visits" per tile - unlike pending reviews, this is shown for
+    # every cookbook including D1: D1 takes no submissions, but people still
+    # browse it, so it still has a real visit count worth seeing.
+    visit_counts = {}
+    for cb in ordered:
+        visit_counts[cb.slug] = conn.execute(
+            "SELECT count(*) AS n FROM page_views WHERE cookbook = %s", (cb.slug,)
+        ).fetchone()["n"]
+
+    return render_template(
+        "superadmin.html", cookbook_list=ordered, pending_counts=pending_counts, visit_counts=visit_counts
+    )
 
 
 @app.route("/superadmin/enter/<slug>")
